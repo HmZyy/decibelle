@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 use std::fs::File;
-use std::io::{BufReader, Cursor};
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -15,6 +15,8 @@ pub struct AudioPlayer {
     _stream: OutputStream,
     stream_handle: OutputStreamHandle,
     state: Arc<RwLock<PlaybackState>>,
+    current_file_path: Arc<Mutex<Option<PathBuf>>>,
+    audio_data: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
 impl AudioPlayer {
@@ -27,6 +29,8 @@ impl AudioPlayer {
             _stream: stream,
             stream_handle,
             state: Arc::new(RwLock::new(PlaybackState::default())),
+            current_file_path: Arc::new(Mutex::new(None)),
+            audio_data: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -40,82 +44,172 @@ impl AudioPlayer {
             return Err(anyhow::anyhow!(error));
         }
 
-        // Check file size
-        if let Ok(metadata) = std::fs::metadata(&path) {
-            logger("DEBUG", &format!("File size: {} bytes", metadata.len()));
+        {
+            let mut file_path = self.current_file_path.lock().await;
+            *file_path = Some(path.clone());
         }
 
-        // Check file extension
-        if let Some(ext) = path.extension() {
-            logger(
-                "DEBUG",
-                &format!("File extension: {}", ext.to_string_lossy()),
-            );
+        let chapters = self.extract_chapters(&path, &mut logger).await?;
+
+        logger("INFO", "FFmpeg conversion");
+        let result = self.load_file_with_ffmpeg(path, logger).await;
+
+        if result.is_ok() {
+            // Update state with chapters
+            let mut state = self.state.write().await;
+            state.chapters = chapters.clone();
+            state.current_chapter = if chapters.is_empty() { None } else { Some(0) };
         }
 
-        // Try direct decode first for simpler formats
-        if let Ok(result) = self.try_direct_decode(&path, &mut logger).await {
-            logger("INFO", "Successfully loaded file using direct decode");
-            return Ok(result);
-        }
-
-        // Fall back to FFmpeg
-        logger("INFO", "Direct decode failed, trying FFmpeg conversion");
-        self.load_file_with_ffmpeg(path, logger).await
+        result
     }
 
-    async fn try_direct_decode(
+    async fn extract_chapters(
         &self,
         path: &PathBuf,
         logger: &mut impl FnMut(&str, &str),
-    ) -> Result<()> {
-        logger("DEBUG", "Attempting direct decode");
+    ) -> Result<Vec<Chapter>> {
+        logger("DEBUG", "Extracting chapters from file");
 
-        let file =
-            File::open(path).with_context(|| format!("Failed to open file: {}", path.display()))?;
+        let output = Command::new("ffprobe")
+            .arg("-v")
+            .arg("quiet")
+            .arg("-print_format")
+            .arg("json")
+            .arg("-show_chapters")
+            .arg(path)
+            .output()
+            .context("Failed to run ffprobe for chapters")?;
 
-        let buf_reader = BufReader::new(file);
-
-        let decoder = Decoder::new(buf_reader)
-            .with_context(|| format!("Failed to decode audio file: {}", path.display()))?;
-
-        let total_duration = decoder.total_duration().unwrap_or(Duration::from_secs(0));
-        logger(
-            "DEBUG",
-            &format!("Direct decode - Total duration: {:?}", total_duration),
-        );
-
-        let sample_rate = decoder.sample_rate();
-        let channels = decoder.channels();
-        logger(
-            "DEBUG",
-            &format!(
-                "Direct decode - Sample rate: {}, Channels: {}",
-                sample_rate, channels
-            ),
-        );
-
-        let new_sink = Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
-
-        new_sink.append(decoder);
-        new_sink.pause();
-
-        // Update state
-        {
-            let mut state = self.state.write().await;
-            state.current_file = Some(path.clone());
-            state.total_duration = total_duration;
-            state.current_position = Duration::from_secs(0);
-            state.is_playing = false;
+        if !output.status.success() {
+            logger("DEBUG", "No chapters found in file");
+            return Ok(Vec::new());
         }
 
-        // Store the new sink
-        {
-            let mut sink = self.sink.lock().await;
-            *sink = Some(new_sink);
+        let json_str =
+            String::from_utf8(output.stdout).context("Failed to parse ffprobe output as UTF-8")?;
+
+        let json: serde_json::Value =
+            serde_json::from_str(&json_str).context("Failed to parse ffprobe JSON output")?;
+
+        let mut chapters = Vec::new();
+
+        if let Some(chapters_array) = json.get("chapters") {
+            if let Some(chapters_vec) = chapters_array.as_array() {
+                for (i, chapter) in chapters_vec.iter().enumerate() {
+                    let title = chapter
+                        .get("tags")
+                        .and_then(|tags| tags.get("title"))
+                        .and_then(|title| title.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("Chapter {}", i + 1));
+
+                    let start_time = chapter
+                        .get("start_time")
+                        .and_then(|t| t.as_str())
+                        .and_then(|t| t.parse::<f64>().ok())
+                        .map(|t| Duration::from_secs_f64(t))
+                        .unwrap_or_else(|| Duration::from_secs(0));
+
+                    let end_time = chapter
+                        .get("end_time")
+                        .and_then(|t| t.as_str())
+                        .and_then(|t| t.parse::<f64>().ok())
+                        .map(|t| Duration::from_secs_f64(t))
+                        .unwrap_or_else(|| Duration::from_secs(0));
+
+                    chapters.push(Chapter {
+                        title,
+                        start_time,
+                        end_time,
+                    });
+                }
+            }
         }
 
-        logger("DEBUG", "Direct decode successful");
+        logger("DEBUG", &format!("Found {} chapters", chapters.len()));
+        Ok(chapters)
+    }
+
+    pub async fn seek_to_chapter(&self, chapter_index: usize) -> Result<()> {
+        let chapters = {
+            let state = self.state.read().await;
+            state.chapters.clone()
+        };
+
+        if let Some(chapter) = chapters.get(chapter_index) {
+            // Actually seek to the chapter position
+            self.seek_to_position(chapter.start_time).await?;
+
+            // Update current chapter
+            {
+                let mut state = self.state.write().await;
+                state.current_chapter = Some(chapter_index);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn seek_to_position(&self, position: Duration) -> Result<()> {
+        // Get the current file path
+        let file_path = {
+            let path = self.current_file_path.lock().await;
+            path.clone()
+        };
+
+        if let Some(_path) = file_path {
+            // Stop current playback
+            {
+                let sink = self.sink.lock().await;
+                if let Some(ref s) = *sink {
+                    s.stop();
+                }
+            }
+
+            // Get audio data (either from cache or by re-converting)
+            let audio_data = {
+                let data = self.audio_data.lock().await;
+                data.clone()
+            };
+
+            if let Some(data) = audio_data {
+                // Create a new sink and decoder from the cached audio data
+                let cursor = Cursor::new(data);
+                let source = Decoder::new(cursor).context("Failed to decode audio data")?;
+
+                // Calculate how many samples to skip based on the position
+                let sample_rate = source.sample_rate();
+                let channels = source.channels();
+                let _samples_to_skip =
+                    (position.as_secs_f64() * sample_rate as f64 * channels as f64) as usize;
+
+                // Skip to the desired position
+                let source_at_position = source.skip_duration(position);
+
+                let new_sink =
+                    Sink::try_new(&self.stream_handle).context("Failed to create audio sink")?;
+                new_sink.append(source_at_position);
+
+                // Update state
+                {
+                    let mut state = self.state.write().await;
+                    state.current_position = position;
+                    state.is_playing = true;
+                }
+
+                // Replace the sink
+                {
+                    let mut sink = self.sink.lock().await;
+                    *sink = Some(new_sink);
+                }
+            } else {
+                return Err(anyhow::anyhow!("No audio data cached for seeking"));
+            }
+        } else {
+            return Err(anyhow::anyhow!("No file loaded"));
+        }
+
         Ok(())
     }
 
@@ -156,16 +250,34 @@ impl AudioPlayer {
             .output()
             .context("Failed to run ffprobe")?;
 
+        let mut actual_duration = Duration::from_secs(0);
+
         if probe_output.status.success() {
             let probe_json = String::from_utf8_lossy(&probe_output.stdout);
             logger("DEBUG", &format!("FFprobe output: {}", probe_json));
+
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&probe_json) {
+                if let Some(format) = json_value.get("format") {
+                    if let Some(duration_str) = format.get("duration") {
+                        if let Some(duration_str) = duration_str.as_str() {
+                            if let Ok(duration_f64) = duration_str.parse::<f64>() {
+                                actual_duration = Duration::from_secs_f64(duration_f64);
+                                logger(
+                                    "DEBUG",
+                                    &format!("Detected duration: {:?}", actual_duration),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             let probe_error = String::from_utf8_lossy(&probe_output.stderr);
             logger("ERROR", &format!("FFprobe error: {}", probe_error));
         }
 
         // Convert with FFmpeg
-        logger("INFO", "Running FFmpeg conversion...");
+        logger("INFO", "Running FFmpeg conversion for full file...");
         let output = Command::new("ffmpeg")
             .arg("-i")
             .arg(&path)
@@ -177,8 +289,6 @@ impl AudioPlayer {
             .arg("2") // stereo
             .arg("-ar")
             .arg("44100") // sample rate
-            .arg("-t")
-            .arg("60") // Convert first 60 seconds for testing
             .arg("-")
             .output()
             .context("Failed to run FFmpeg - make sure it's installed and in PATH")?;
@@ -198,13 +308,24 @@ impl AudioPlayer {
             ),
         );
 
+        // Cache the converted audio data
+        {
+            let mut audio_data = self.audio_data.lock().await;
+            *audio_data = Some(output.stdout.clone());
+        }
+
         // Create a cursor from the converted audio data
         let cursor = Cursor::new(output.stdout);
 
         // Decode the converted WAV data
         let source = Decoder::new(cursor).context("Failed to decode converted audio data")?;
 
-        let total_duration = source.total_duration().unwrap_or(Duration::from_secs(60));
+        let total_duration = if actual_duration.as_secs() > 0 {
+            actual_duration
+        } else {
+            source.total_duration().unwrap_or(Duration::from_secs(0))
+        };
+
         logger(
             "DEBUG",
             &format!("FFmpeg decode - Total duration: {:?}", total_duration),
@@ -242,7 +363,7 @@ impl AudioPlayer {
             *sink = Some(new_sink);
         }
 
-        logger("INFO", "FFmpeg load successful");
+        logger("INFO", "FFmpeg load successful - full file loaded");
         Ok(())
     }
 
@@ -335,12 +456,39 @@ impl AudioPlayer {
                     state.current_position = state.total_duration;
                     state.is_playing = false;
                 }
+
+                // Update current chapter based on position
+                if !state.chapters.is_empty() {
+                    for (i, chapter) in state.chapters.iter().enumerate() {
+                        if state.current_position >= chapter.start_time
+                            && state.current_position < chapter.end_time
+                        {
+                            state.current_chapter = Some(i);
+                            break;
+                        }
+                    }
+                }
             }
         }
         Ok(())
     }
 
     pub async fn is_finished(&self) -> bool {
+        let state = self.state.read().await;
+
+        // Check if we're at the end of the current chapter (for single file with chapters)
+        if !state.chapters.is_empty() {
+            if let Some(current_chapter_idx) = state.current_chapter {
+                if let Some(chapter) = state.chapters.get(current_chapter_idx) {
+                    // Consider finished if we're at the end of the current chapter
+                    if state.current_position >= chapter.end_time {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Otherwise check if sink is empty (for multi-file books)
         let sink = self.sink.lock().await;
         if let Some(ref sink) = *sink {
             sink.empty()

@@ -77,11 +77,14 @@ impl AudiobookScanner {
             .parent()
             .context("Failed to get parent directory")?;
 
-        // If the parent is the audiobook directory itself, use the file's stem as book name
+        // If the parent is the audiobook directory itself, treat the file as a standalone book
         if parent == self.audiobook_dir {
-            return Ok(parent.join(file_path.file_stem().context("Failed to get file stem")?));
+            // For standalone files, use the file's stem as the book directory name
+            // But return the actual parent directory (the audiobook root)
+            return Ok(parent.to_path_buf());
         }
 
+        // Otherwise, use the parent directory as the book directory
         Ok(parent.to_path_buf())
     }
 
@@ -96,11 +99,23 @@ impl AudiobookScanner {
                 .cmp(&self.natural_sort_key(b.file_name().unwrap_or_default()))
         });
 
-        let book_title = book_dir
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("Unknown Book")
-            .to_string();
+        // Determine book title from directory name or file name
+        let book_title = if book_dir == self.audiobook_dir {
+            // For standalone files in the root directory, use the first file's stem
+            audio_files
+                .first()
+                .and_then(|f| f.file_stem())
+                .and_then(|stem| stem.to_str())
+                .unwrap_or("Unknown Book")
+                .to_string()
+        } else {
+            // For files in subdirectories, use the directory name
+            book_dir
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("Unknown Book")
+                .to_string()
+        };
 
         let mut book = Book::new(
             book_title,
@@ -113,7 +128,9 @@ impl AudiobookScanner {
             if let Ok(metadata) = self.extract_metadata(first_file).await {
                 if let Some(title) = metadata.get("title") {
                     if let Some(title_str) = title.as_str() {
-                        book.title = title_str.to_string();
+                        if !title_str.is_empty() {
+                            book.title = title_str.to_string();
+                        }
                     }
                 }
                 if let Some(artist) = metadata
@@ -121,12 +138,16 @@ impl AudiobookScanner {
                     .or_else(|| metadata.get("album_artist"))
                 {
                     if let Some(artist_str) = artist.as_str() {
-                        book.author = artist_str.to_string();
+                        if !artist_str.is_empty() {
+                            book.author = artist_str.to_string();
+                        }
                     }
                 }
                 if let Some(album) = metadata.get("album") {
                     if let Some(album_str) = album.as_str() {
-                        book.title = album_str.to_string();
+                        if !album_str.is_empty() {
+                            book.title = album_str.to_string();
+                        }
                     }
                 }
             }
@@ -300,4 +321,3 @@ mod tests {
         assert_eq!(files[2], "chapter10.mp3");
     }
 }
-

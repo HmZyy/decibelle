@@ -155,10 +155,26 @@ fn render_book_list(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_chapter_list(f: &mut Frame, app: &App, area: Rect) {
     let chapters: Vec<ListItem> = if let Some(book) = app.get_current_book() {
-        if book.chapters.is_empty() {
+        let chapter_list = if app.current_audio_files.len() == 1 && !book.chapters.is_empty() {
+            &book.chapters
+        } else if !app.current_audio_files.is_empty() {
+            &app.current_audio_files
+                .iter()
+                .map(|f| {
+                    f.file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Unknown")
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+        } else {
+            &book.chapters
+        };
+
+        if chapter_list.is_empty() {
             vec![ListItem::new(Line::from("No chapters found"))]
         } else {
-            book.chapters
+            chapter_list
                 .iter()
                 .enumerate()
                 .map(|(i, chapter)| {
@@ -183,10 +199,16 @@ fn render_chapter_list(f: &mut Frame, app: &App, area: Rect) {
         Color::Blue
     };
 
-    let chapter_count = app
-        .get_current_book()
-        .map(|book| book.chapters.len())
-        .unwrap_or(0);
+    let chapter_count = if let Some(book) = app.get_current_book() {
+        if app.current_audio_files.len() == 1 {
+            book.chapters.len()
+        } else {
+            std::cmp::max(book.chapters.len(), app.current_audio_files.len())
+        }
+    } else {
+        0
+    };
+
     let title = format!("📖 Chapters ({})", chapter_count);
 
     let chapters_list = List::new(chapters)

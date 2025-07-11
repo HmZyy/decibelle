@@ -9,6 +9,15 @@ pub struct PlaybackState {
     pub volume: f32,
     pub playback_speed: f32,
     pub current_file: Option<PathBuf>,
+    pub chapters: Vec<Chapter>,
+    pub current_chapter: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Chapter {
+    pub title: String,
+    pub start_time: Duration,
+    pub end_time: Duration,
 }
 
 impl Default for PlaybackState {
@@ -20,6 +29,8 @@ impl Default for PlaybackState {
             volume: 1.0,
             playback_speed: 1.0,
             current_file: None,
+            chapters: Vec::new(),
+            current_chapter: None,
         }
     }
 }
@@ -33,6 +44,7 @@ pub enum AudioCommand {
     SetVolume(f32),
     SetSpeed(f32),
     Seek(Duration),
+    SeekToChapter(usize),
     GetState,
 }
 
