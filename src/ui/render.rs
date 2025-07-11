@@ -19,13 +19,19 @@ pub fn render_ui(f: &mut Frame, app: &App) {
         return;
     }
 
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(75), Constraint::Percentage(25)].as_ref())
+        .split(f.size());
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
-        .split(f.size());
+        .split(main_chunks[0]);
 
     render_left_panel(f, app, chunks[0]);
     render_right_panel(f, app, chunks[1]);
+    render_console_pane(f, app, main_chunks[1]);
 }
 
 fn render_loading_screen(f: &mut Frame) {
@@ -34,7 +40,7 @@ fn render_loading_screen(f: &mut Frame) {
         Line::from("🔍 Scanning audiobooks..."),
         Line::from(""),
         Line::from("This may take a moment while we:"),
-        Line::from("• Scan ~/Audiobook directory"),
+        Line::from("• Scan ~/Audiobooks directory"),
         Line::from("• Extract metadata with ffprobe"),
         Line::from("• Discover chapters"),
         Line::from(""),
@@ -65,7 +71,7 @@ fn render_error_screen(f: &mut Frame, error: &str) {
         ]),
         Line::from(""),
         Line::from("Troubleshooting:"),
-        Line::from("• Make sure ~/Audiobook directory exists"),
+        Line::from("• Make sure ~/Audiobooks directory exists"),
         Line::from("• Check that ffprobe is installed (part of ffmpeg)"),
         Line::from("• Verify audio files are in supported formats"),
         Line::from(""),
@@ -205,7 +211,7 @@ fn render_chapter_list(f: &mut Frame, app: &App, area: Rect) {
 fn render_right_panel(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
+        .constraints([Constraint::Fill(1), Constraint::Length(6)].as_ref())
         .split(area);
 
     render_book_info(f, app, chunks[0]);
@@ -247,6 +253,15 @@ fn render_book_info(f: &mut Frame, app: &App, area: Rect) {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(book.chapters.len().to_string()),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    "Audio Files: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(app.current_audio_files.len().to_string()),
             ]),
             Line::from(vec![
                 Span::styled(
@@ -304,6 +319,7 @@ fn render_book_info(f: &mut Frame, app: &App, area: Rect) {
             Line::from("• Enter: Select book/chapter"),
             Line::from("• Space: Play/pause"),
             Line::from("• r: Refresh library"),
+            Line::from("• c: Clear console"),
             Line::from("• q: Quit"),
         ])
         .block(
@@ -331,7 +347,6 @@ fn render_audio_controls(f: &mut Frame, app: &App, area: Rect) {
             [
                 Constraint::Length(3), // Controls
                 Constraint::Length(3), // Progress bar
-                Constraint::Min(1),    // Status
             ]
             .as_ref(),
         )
@@ -343,7 +358,6 @@ fn render_audio_controls(f: &mut Frame, app: &App, area: Rect) {
     } else {
         "▶️  Play"
     };
-    let current_chapter = app.get_current_chapter().unwrap_or("No chapter selected");
 
     let controls_text = vec![Line::from(vec![
         Span::styled("⏮️ Prev ", Style::default().fg(Color::White)),
@@ -375,17 +389,46 @@ fn render_audio_controls(f: &mut Frame, app: &App, area: Rect) {
         .label(format!("{} / {}", app.current_time, app.total_time));
 
     f.render_widget(progress_bar, chunks[1]);
-
-    // Current chapter info
-    let status_text = vec![Line::from(vec![
-        Span::styled("Now Playing: ", Style::default().fg(Color::Cyan)),
-        Span::raw(current_chapter.to_string()),
-    ])];
-
-    let status = Paragraph::new(status_text)
-        .block(Block::default().borders(Borders::ALL).title("Status"))
-        .alignment(Alignment::Left);
-
-    f.render_widget(status, chunks[2]);
 }
 
+fn render_console_pane(f: &mut Frame, app: &App, area: Rect) {
+    let console_lines: Vec<Line> = app
+        .console_messages
+        .iter()
+        .map(|msg| {
+            let level_color = match msg.level.as_str() {
+                "ERROR" => Color::Red,
+                "WARN" => Color::Yellow,
+                "INFO" => Color::Green,
+                "DEBUG" => Color::Blue,
+                _ => Color::White,
+            };
+
+            Line::from(vec![
+                Span::styled(
+                    format!("[{}]", msg.timestamp),
+                    Style::default().fg(Color::Gray),
+                ),
+                Span::styled(
+                    format!(" {}: ", msg.level),
+                    Style::default()
+                        .fg(level_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(msg.message.clone()),
+            ])
+        })
+        .collect();
+
+    let console_paragraph = Paragraph::new(console_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("🖥️ Console (Press 'c' to clear)")
+                .border_style(Style::default().fg(Color::Cyan)),
+        )
+        .wrap(Wrap { trim: true })
+        .alignment(Alignment::Left);
+
+    f.render_widget(console_paragraph, area);
+}
