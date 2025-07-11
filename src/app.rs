@@ -1,5 +1,8 @@
+use crate::audiobook_scanner::AudiobookScanner;
 use crate::models::book::Book;
+use anyhow::Result;
 use crossterm::event::KeyEvent;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FocusedPane {
@@ -26,6 +29,8 @@ pub struct App {
     pub progress: f64, // 0.0 to 1.0
     pub current_time: String,
     pub total_time: String,
+    pub is_loading: bool,
+    pub error_message: Option<String>,
 }
 
 impl App {
@@ -34,18 +39,55 @@ impl App {
             should_quit: false,
             focused_pane: FocusedPane::BookList,
             current_side: Side::Left,
-            books: Self::load_sample_books(),
+            books: Vec::new(),
             selected_book_index: 0,
             selected_chapter_index: 0,
             is_playing: false,
             progress: 0.0,
             current_time: "00:00".to_string(),
             total_time: "00:00".to_string(),
+            is_loading: true,
+            error_message: None,
         }
+    }
+
+    pub async fn initialize(&mut self) -> Result<()> {
+        self.is_loading = true;
+        self.error_message = None;
+
+        let audiobook_dir = dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Audiobooks");
+
+        let scanner = AudiobookScanner::new(audiobook_dir);
+
+        match scanner.scan_audiobooks().await {
+            Ok(books) => {
+                self.books = books;
+                if self.books.is_empty() {
+                    self.error_message =
+                        Some("No audiobooks found in ~/Audiobooks directory".to_string());
+                } else {
+                    self.selected_book_index = 0;
+                    self.selected_chapter_index = 0;
+                }
+            }
+            Err(e) => {
+                self.error_message = Some(format!("Error scanning audiobooks: {}", e));
+            }
+        }
+
+        self.is_loading = false;
+        Ok(())
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
         use crossterm::event::KeyCode;
+
+        // Don't handle input while loading
+        if self.is_loading {
+            return;
+        }
 
         match key.code {
             KeyCode::Char('h') => self.cycle_pane_left(),
@@ -54,11 +96,20 @@ impl App {
             KeyCode::Char('k') => self.move_up(),
             KeyCode::Enter => self.select_current_item(),
             KeyCode::Char(' ') => self.toggle_playback(),
+            KeyCode::Char('r') => {
+                // Refresh/reload audiobooks
+                self.is_loading = true;
+                // This will be handled in the main loop
+            }
             _ => {}
         }
     }
 
     fn cycle_pane_left(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         self.focused_pane = match self.focused_pane {
             FocusedPane::BookList => FocusedPane::AudioControls,
             FocusedPane::ChapterList => FocusedPane::BookList,
@@ -69,6 +120,10 @@ impl App {
     }
 
     fn cycle_pane_right(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         self.focused_pane = match self.focused_pane {
             FocusedPane::BookList => FocusedPane::ChapterList,
             FocusedPane::ChapterList => FocusedPane::BookInfo,
@@ -86,6 +141,10 @@ impl App {
     }
 
     fn move_down(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         match self.focused_pane {
             FocusedPane::BookList => {
                 if self.selected_book_index < self.books.len().saturating_sub(1) {
@@ -102,15 +161,20 @@ impl App {
             }
             FocusedPane::BookInfo => {
                 self.focused_pane = FocusedPane::AudioControls;
+                self.update_current_side();
             }
             FocusedPane::AudioControls => {
-                // Stay in audio controls or cycle back to book info
                 self.focused_pane = FocusedPane::BookInfo;
+                self.update_current_side();
             }
         }
     }
 
     fn move_up(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         match self.focused_pane {
             FocusedPane::BookList => {
                 if self.selected_book_index > 0 {
@@ -125,18 +189,25 @@ impl App {
             }
             FocusedPane::BookInfo => {
                 self.focused_pane = FocusedPane::AudioControls;
+                self.update_current_side();
             }
             FocusedPane::AudioControls => {
                 self.focused_pane = FocusedPane::BookInfo;
+                self.update_current_side();
             }
         }
     }
 
     fn select_current_item(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         match self.focused_pane {
             FocusedPane::BookList => {
                 // Move focus to chapter list when a book is selected
                 self.focused_pane = FocusedPane::ChapterList;
+                self.update_current_side();
             }
             FocusedPane::ChapterList => {
                 // Start playing the selected chapter
@@ -148,6 +219,10 @@ impl App {
     }
 
     fn toggle_playback(&mut self) {
+        if self.books.is_empty() {
+            return;
+        }
+
         self.is_playing = !self.is_playing;
         // TODO: Implement actual audio playback control
     }
@@ -175,50 +250,7 @@ impl App {
             .map(|x| x.as_str())
     }
 
-    fn load_sample_books() -> Vec<Book> {
-        vec![
-            Book {
-                title: "The Rust Programming Language".to_string(),
-                author: "Steve Klabnik & Carol Nichols".to_string(),
-                description: "The official book on the Rust programming language, written by the Rust development team at Mozilla.".to_string(),
-                chapters: vec![
-                    "Chapter 1: Getting Started".to_string(),
-                    "Chapter 2: Programming a Guessing Game".to_string(),
-                    "Chapter 3: Common Programming Concepts".to_string(),
-                    "Chapter 4: Understanding Ownership".to_string(),
-                    "Chapter 5: Using Structs".to_string(),
-                ],
-                cover_path: None,
-                path: "~/Audiobooks/rust-book/".to_string(),
-            },
-            Book {
-                title: "Dune".to_string(),
-                author: "Frank Herbert".to_string(),
-                description: "A science fiction novel about the desert planet Arrakis and the noble family caught in a struggle for control of the most valuable substance in the universe.".to_string(),
-                chapters: vec![
-                    "Book One: Dune".to_string(),
-                    "Book Two: Muad'Dib".to_string(),
-                    "Book Three: The Prophet".to_string(),
-                ],
-                cover_path: None,
-                path: "~/Audiobooks/dune/".to_string(),
-            },
-            Book {
-                title: "The Hobbit".to_string(),
-                author: "J.R.R. Tolkien".to_string(),
-                description: "A fantasy novel about Bilbo Baggins, a hobbit who joins a company of dwarves on a quest to reclaim their homeland from the dragon Smaug.".to_string(),
-                chapters: vec![
-                    "An Unexpected Party".to_string(),
-                    "Roast Mutton".to_string(),
-                    "A Short Rest".to_string(),
-                    "Over Hill and Under Hill".to_string(),
-                    "Riddles in the Dark".to_string(),
-                    "Out of the Frying-Pan into the Fire".to_string(),
-                ],
-                cover_path: None,
-                path: "~/Audiobooks/hobbit/".to_string(),
-            },
-        ]
+    pub fn needs_refresh(&self) -> bool {
+        self.is_loading
     }
 }
-

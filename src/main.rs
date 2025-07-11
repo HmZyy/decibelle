@@ -9,6 +9,7 @@ use std::io;
 use tokio::time::{Duration, Instant};
 
 mod app;
+mod audiobook_scanner;
 mod models;
 mod ui;
 
@@ -23,7 +24,11 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new();
+    let mut app = App::new();
+
+    // Initialize the app asynchronously
+    let _ = app.initialize().await; // Continue even if initialization fails
+
     let res = run_app(&mut terminal, app).await;
 
     disable_raw_mode()?;
@@ -68,7 +73,14 @@ async fn run_app(
 
         if last_tick.elapsed() >= tick_rate {
             app.on_tick();
+
+            // Check if we need to refresh (reload audiobooks)
+            if app.needs_refresh() {
+                let _ = app.initialize().await;
+            }
+
             last_tick = Instant::now();
         }
     }
 }
+
