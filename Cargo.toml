@@ -13,3 +13,5 @@ anyhow = "1.0"
 dirs = "5.0"
 walkdir = "2.4"
 regex = "1.10"
+rodio = "0.17"
+symphonia = { version = "0.5", features = ["mp3", "flac", "vorbis", "aac"] }

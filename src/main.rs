@@ -9,6 +9,7 @@ use std::io;
 use tokio::time::{Duration, Instant};
 
 mod app;
+mod audio;
 mod audiobook_scanner;
 mod models;
 mod ui;
@@ -51,7 +52,7 @@ async fn run_app(
     mut app: App,
 ) -> Result<()> {
     let mut last_tick = Instant::now();
-    let tick_rate = Duration::from_millis(250);
+    let tick_rate = Duration::from_millis(100);
 
     loop {
         terminal.draw(|f| render_ui(f, &app))?;
@@ -65,14 +66,14 @@ async fn run_app(
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     _ => {
-                        app.handle_key_event(key);
+                        app.handle_key_event(key).await;
                     }
                 }
             }
         }
 
         if last_tick.elapsed() >= tick_rate {
-            app.on_tick();
+            app.on_tick().await;
 
             // Check if we need to refresh (reload audiobooks)
             if app.needs_refresh() {
