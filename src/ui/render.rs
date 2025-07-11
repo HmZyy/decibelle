@@ -2,13 +2,16 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{
+        Block, Borders, Gauge, List, ListItem, ListState, Paragraph, Scrollbar,
+        ScrollbarOrientation, ScrollbarState, Wrap,
+    },
     Frame,
 };
 
 use crate::app::{App, FocusedPane};
 
-pub fn render_ui(f: &mut Frame, app: &App) {
+pub fn render_ui(f: &mut Frame, app: &mut App) {
     if app.is_loading {
         render_loading_screen(f);
         return;
@@ -337,11 +340,13 @@ fn render_book_info(f: &mut Frame, app: &App, area: Rect) {
             Line::from(""),
             Line::from("Controls:"),
             Line::from("• h/l: Move between panes"),
-            Line::from("• j/k: Move up/down"),
+            Line::from("• j/k: Move up/down (or scroll console)"),
             Line::from("• Enter: Select book/chapter"),
             Line::from("• Space: Play/pause"),
             Line::from("• r: Refresh library"),
-            Line::from("• c: Clear console"),
+            Line::from("• c: Focus console (or clear when focused)"),
+            Line::from("• g/G: Go to top/bottom (in console)"),
+            Line::from("• Esc: Exit console"),
             Line::from("• q: Quit"),
         ])
         .block(
@@ -413,10 +418,27 @@ fn render_audio_controls(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(progress_bar, chunks[1]);
 }
 
-fn render_console_pane(f: &mut Frame, app: &App, area: Rect) {
+fn render_console_pane(f: &mut Frame, app: &mut App, area: Rect) {
+    // Update the viewport height based on the actual rendered area
+    app.update_console_viewport_height(area.height as usize);
+
+    let border_color = if app.focused_pane == FocusedPane::Console {
+        Color::Magenta
+    } else {
+        Color::Cyan
+    };
+
+    // Calculate visible range
+    let total_messages = app.console_messages.len();
+    let start_idx = app.console_scroll_offset;
+    let end_idx = (start_idx + app.console_viewport_height).min(total_messages);
+
+    // Get visible messages
     let console_lines: Vec<Line> = app
         .console_messages
         .iter()
+        .skip(start_idx)
+        .take(end_idx - start_idx)
         .map(|msg| {
             let level_color = match msg.level.as_str() {
                 "ERROR" => Color::Red,
@@ -442,15 +464,65 @@ fn render_console_pane(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    // Create title with scroll position indicator
+    let scroll_indicator = if total_messages > app.console_viewport_height {
+        let position = if total_messages == 0 {
+            0
+        } else {
+            ((app.console_scroll_offset as f32
+                / (total_messages - app.console_viewport_height).max(1) as f32)
+                * 100.0) as u32
+        };
+        format!(
+            " [{}/{}] ({}%)",
+            end_idx.min(total_messages),
+            total_messages,
+            position
+        )
+    } else {
+        String::new()
+    };
+
+    let title = if app.focused_pane == FocusedPane::Console {
+        format!(
+            "🖥️ Console (c: clear, j/k: scroll, g/G: top/bottom, Esc: exit){}",
+            scroll_indicator
+        )
+    } else {
+        format!("🖥️ Console (Press 'c' to focus){}", scroll_indicator)
+    };
+
     let console_paragraph = Paragraph::new(console_lines)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("🖥️ Console (Press 'c' to clear)")
-                .border_style(Style::default().fg(Color::Cyan)),
+                .title(title)
+                .border_style(Style::default().fg(border_color)),
         )
         .wrap(Wrap { trim: true })
         .alignment(Alignment::Left);
 
-    f.render_widget(console_paragraph, area);
+    let console_area = area;
+    f.render_widget(console_paragraph, console_area);
+
+    // Render scrollbar if there are more messages than can fit
+    if total_messages > app.console_viewport_height {
+        let scrollbar_area = Rect {
+            x: console_area.x + console_area.width - 1,
+            y: console_area.y + 1,
+            width: 1,
+            height: console_area.height.saturating_sub(2),
+        };
+
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"));
+
+        let mut scrollbar_state = ScrollbarState::new(total_messages)
+            .position(app.console_scroll_offset)
+            .viewport_content_length(app.console_viewport_height);
+
+        f.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+    }
 }
+

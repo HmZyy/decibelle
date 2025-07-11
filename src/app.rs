@@ -15,12 +15,14 @@ pub enum FocusedPane {
     ChapterList,
     BookInfo,
     AudioControls,
+    Console,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Side {
     Left,
     Right,
+    Bottom,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +48,8 @@ pub struct App {
     pub audio_player: Option<AudioPlayer>,
     pub current_audio_files: Vec<PathBuf>,
     pub console_messages: VecDeque<ConsoleMessage>,
+    pub console_scroll_offset: usize,
+    pub console_viewport_height: usize,
     pub audiobook_directory: PathBuf,
 }
 
@@ -71,6 +75,8 @@ impl App {
             audio_player: None,
             current_audio_files: Vec::new(),
             console_messages: VecDeque::new(),
+            console_scroll_offset: 0,
+            console_viewport_height: 10,
             audiobook_directory: audiobook_dir,
         }
     }
@@ -85,10 +91,66 @@ impl App {
 
         self.console_messages.push_back(console_msg);
 
-        // Keep only last 100 messages
-        if self.console_messages.len() > 100 {
+        // Keep only last 1000 messages
+        if self.console_messages.len() > 1000 {
             self.console_messages.pop_front();
+            // Adjust scroll offset if needed
+            if self.console_scroll_offset > 0 {
+                self.console_scroll_offset -= 1;
+            }
         }
+
+        // Auto-scroll to bottom when new message arrives (if we're already at the bottom)
+        let total_messages = self.console_messages.len();
+        if self.console_scroll_offset + self.console_viewport_height
+            >= total_messages.saturating_sub(1)
+        {
+            self.console_scroll_offset =
+                total_messages.saturating_sub(self.console_viewport_height);
+        }
+    }
+
+    pub fn scroll_console_up(&mut self) {
+        if self.console_scroll_offset > 0 {
+            self.console_scroll_offset -= 1;
+        }
+    }
+
+    pub fn scroll_console_down(&mut self) {
+        let max_offset = self
+            .console_messages
+            .len()
+            .saturating_sub(self.console_viewport_height);
+        if self.console_scroll_offset < max_offset {
+            self.console_scroll_offset += 1;
+        }
+    }
+
+    pub fn scroll_console_page_up(&mut self) {
+        self.console_scroll_offset = self
+            .console_scroll_offset
+            .saturating_sub(self.console_viewport_height);
+    }
+
+    pub fn scroll_console_page_down(&mut self) {
+        let max_offset = self
+            .console_messages
+            .len()
+            .saturating_sub(self.console_viewport_height);
+        self.console_scroll_offset =
+            (self.console_scroll_offset + self.console_viewport_height).min(max_offset);
+    }
+
+    pub fn scroll_console_to_top(&mut self) {
+        self.console_scroll_offset = 0;
+    }
+
+    pub fn scroll_console_to_bottom(&mut self) {
+        let max_offset = self
+            .console_messages
+            .len()
+            .saturating_sub(self.console_viewport_height);
+        self.console_scroll_offset = max_offset;
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
@@ -498,9 +560,17 @@ impl App {
                 // This will be handled in the main loop
             }
             KeyCode::Char('c') => {
-                // Clear console
-                self.console_messages.clear();
-                self.log_message("INFO", "Console cleared");
+                if self.focused_pane == FocusedPane::Console {
+                    // Clear console
+                    self.console_messages.clear();
+                    self.console_scroll_offset = 0;
+                    self.log_message("INFO", "Console cleared");
+                } else {
+                    // Focus console
+                    self.focused_pane = FocusedPane::Console;
+                    self.current_side = Side::Bottom;
+                    self.scroll_console_to_bottom();
+                }
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
                 self.adjust_volume(0.1).await;
@@ -527,6 +597,33 @@ impl App {
             KeyCode::Char('b') => {
                 // Seek backward 30 seconds
                 self.seek_relative(-30.0).await;
+            }
+            KeyCode::Char('g') => {
+                if self.focused_pane == FocusedPane::Console {
+                    self.scroll_console_to_top();
+                }
+            }
+            KeyCode::Char('G') => {
+                if self.focused_pane == FocusedPane::Console {
+                    self.scroll_console_to_bottom();
+                }
+            }
+            KeyCode::PageUp => {
+                if self.focused_pane == FocusedPane::Console {
+                    self.scroll_console_page_up();
+                }
+            }
+            KeyCode::PageDown => {
+                if self.focused_pane == FocusedPane::Console {
+                    self.scroll_console_page_down();
+                }
+            }
+            KeyCode::Esc => {
+                if self.focused_pane == FocusedPane::Console {
+                    // Exit console and go back to previous pane
+                    self.focused_pane = FocusedPane::BookList;
+                    self.current_side = Side::Left;
+                }
             }
             _ => {}
         }
@@ -617,7 +714,7 @@ impl App {
         if self.current_audio_files.len() == 1 {
             // Single file with embedded chapters
             if let Some(audio_player) = &self.audio_player {
-                let chapter_num = self.selected_chapter_index + 1;
+                let _chapter_num = self.selected_chapter_index + 1;
 
                 if let Err(e) = audio_player
                     .seek_to_chapter(self.selected_chapter_index)
@@ -651,10 +748,11 @@ impl App {
         }
 
         self.focused_pane = match self.focused_pane {
-            FocusedPane::BookList => FocusedPane::AudioControls,
+            FocusedPane::BookList => FocusedPane::Console,
             FocusedPane::ChapterList => FocusedPane::BookList,
             FocusedPane::BookInfo => FocusedPane::ChapterList,
             FocusedPane::AudioControls => FocusedPane::BookInfo,
+            FocusedPane::Console => FocusedPane::AudioControls,
         };
         self.update_current_side();
     }
@@ -668,7 +766,8 @@ impl App {
             FocusedPane::BookList => FocusedPane::ChapterList,
             FocusedPane::ChapterList => FocusedPane::BookInfo,
             FocusedPane::BookInfo => FocusedPane::AudioControls,
-            FocusedPane::AudioControls => FocusedPane::BookList,
+            FocusedPane::AudioControls => FocusedPane::Console,
+            FocusedPane::Console => FocusedPane::BookList,
         };
         self.update_current_side();
     }
@@ -677,11 +776,12 @@ impl App {
         self.current_side = match self.focused_pane {
             FocusedPane::BookList | FocusedPane::ChapterList => Side::Left,
             FocusedPane::BookInfo | FocusedPane::AudioControls => Side::Right,
+            FocusedPane::Console => Side::Bottom,
         };
     }
 
     async fn move_down(&mut self) {
-        if self.books.is_empty() {
+        if self.books.is_empty() && self.focused_pane != FocusedPane::Console {
             return;
         }
 
@@ -730,11 +830,14 @@ impl App {
                 self.focused_pane = FocusedPane::BookInfo;
                 self.update_current_side();
             }
+            FocusedPane::Console => {
+                self.scroll_console_down();
+            }
         }
     }
 
     async fn move_up(&mut self) {
-        if self.books.is_empty() {
+        if self.books.is_empty() && self.focused_pane != FocusedPane::Console {
             return;
         }
 
@@ -771,6 +874,9 @@ impl App {
                 self.focused_pane = FocusedPane::BookInfo;
                 self.update_current_side();
             }
+            FocusedPane::Console => {
+                self.scroll_console_up();
+            }
         }
     }
 
@@ -791,6 +897,9 @@ impl App {
             FocusedPane::ChapterList => {
                 // Load and start playing the selected chapter
                 self.load_selected_chapter().await;
+            }
+            FocusedPane::Console => {
+                // Maybe implement copying selected log line to clipboard in the future
             }
             _ => {}
         }
@@ -1002,6 +1111,18 @@ impl App {
 
     pub fn needs_refresh(&self) -> bool {
         self.is_loading
+    }
+
+    pub fn update_console_viewport_height(&mut self, height: usize) {
+        self.console_viewport_height = height.saturating_sub(4); // Account for borders and title
+                                                                 // Adjust scroll offset if needed
+        let max_offset = self
+            .console_messages
+            .len()
+            .saturating_sub(self.console_viewport_height);
+        if self.console_scroll_offset > max_offset {
+            self.console_scroll_offset = max_offset;
+        }
     }
 }
 

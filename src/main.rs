@@ -55,7 +55,7 @@ async fn run_app(
     let tick_rate = Duration::from_millis(100);
 
     loop {
-        terminal.draw(|f| render_ui(f, &app))?;
+        terminal.draw(|f| render_ui(f, &mut app))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())

@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
-use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
