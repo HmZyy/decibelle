@@ -8,6 +8,9 @@ pub enum ThemeName {
     TokyoNight,
     #[default]
     CatppuccinMocha,
+    Gruvbox,
+    Kanagawa,
+    Hackerman,
 }
 
 static CURRENT_THEME: OnceLock<Theme> = OnceLock::new();
@@ -16,6 +19,9 @@ pub fn init_theme(name: ThemeName) {
     let theme = match name {
         ThemeName::TokyoNight => Theme::tokyo_night(),
         ThemeName::CatppuccinMocha => Theme::catppuccin_mocha(),
+        ThemeName::Gruvbox => Theme::gruvbox(),
+        ThemeName::Kanagawa => Theme::kanagawa(),
+        ThemeName::Hackerman => Theme::hackerman(),
     };
     let _ = CURRENT_THEME.set(theme);
 }
@@ -99,6 +105,84 @@ impl Theme {
             paused: Color::Rgb(249, 226, 175),  // #f9e2af
             info: Color::Rgb(203, 166, 247),    // #cba6f7
             title: Color::Rgb(137, 180, 250),   // #89b4fa
+        }
+    }
+
+    pub const fn gruvbox() -> Self {
+        Self {
+            // Base
+            bg: Color::Rgb(60, 56, 54),           // #3c3836
+            bg_highlight: Color::Rgb(80, 73, 69), // derived
+            fg: Color::Rgb(235, 219, 178),        // #ebdbb2
+            fg_dim: Color::Rgb(146, 131, 116),    // #928374
+
+            // UI elements
+            border: Color::Rgb(69, 133, 136),          // #458588
+            border_focused: Color::Rgb(142, 192, 124), // #8ec07c
+            selection_bg: Color::Rgb(80, 73, 69),      // derived
+            current_bg: Color::Rgb(69, 133, 136),      // #458588
+
+            // Accents
+            accent: Color::Rgb(142, 192, 124),    // #8ec07c
+            accent_alt: Color::Rgb(215, 153, 33), // #d79921
+
+            // Semantic
+            playing: Color::Rgb(142, 192, 124), // #8ec07c
+            paused: Color::Rgb(215, 153, 33),   // #d79921
+            info: Color::Rgb(69, 133, 136),     // #458588
+            title: Color::Rgb(204, 36, 29),     // #cc241d
+        }
+    }
+
+    pub const fn kanagawa() -> Self {
+        Self {
+            // Base
+            bg: Color::Rgb(46, 50, 87),            // #2e3257
+            bg_highlight: Color::Rgb(66, 70, 107), // derived
+            fg: Color::Rgb(255, 254, 247),         // #fffef7
+            fg_dim: Color::Rgb(186, 187, 189),     // #babbbd
+
+            // UI elements
+            border: Color::Rgb(98, 125, 154),          // #627d9a
+            border_focused: Color::Rgb(223, 197, 164), // #dfc5a4
+            selection_bg: Color::Rgb(66, 70, 107),     // derived
+            current_bg: Color::Rgb(98, 125, 154),      // #627d9a
+
+            // Accents
+            accent: Color::Rgb(223, 197, 164),    // #dfc5a4
+            accent_alt: Color::Rgb(98, 125, 154), // #627d9a
+
+            // Semantic
+            playing: Color::Rgb(223, 197, 164), // #dfc5a4
+            paused: Color::Rgb(186, 187, 189),  // #babbbd
+            info: Color::Rgb(98, 125, 154),     // #627d9a
+            title: Color::Rgb(255, 254, 247),   // #fffef7
+        }
+    }
+
+    pub const fn hackerman() -> Self {
+        Self {
+            // Base
+            bg: Color::Rgb(0, 0, 0),              // #000000
+            bg_highlight: Color::Rgb(10, 25, 10), // #0a190a
+            fg: Color::Rgb(0, 255, 65),           // #00ff41
+            fg_dim: Color::Rgb(0, 128, 32),       // #008020
+
+            // UI elements
+            border: Color::Rgb(0, 180, 45),          // #00b42d
+            border_focused: Color::Rgb(57, 255, 20), // #39ff14
+            selection_bg: Color::Rgb(0, 50, 12),     // #00320c
+            current_bg: Color::Rgb(0, 200, 50),      // #00c832
+
+            // Accents
+            accent: Color::Rgb(57, 255, 20),     // #39ff14
+            accent_alt: Color::Rgb(0, 255, 159), // #00ff9f
+
+            // Semantic
+            playing: Color::Rgb(0, 255, 65), // #00ff41
+            paused: Color::Rgb(180, 255, 0), // #b4ff00
+            info: Color::Rgb(0, 255, 159),   // #00ff9f
+            title: Color::Rgb(57, 255, 20),  // #39ff14
         }
     }
 
