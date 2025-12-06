@@ -198,9 +198,12 @@ impl App {
             }
         }
 
-        let _ = self
-            .api_tx
-            .send(ApiCommand::DownloadForPlayback(item.id.clone(), position));
+        self.focus = Focus::Chapters;
+        let resume_position = (position - 10.0).max(0.0);
+        let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
+            item.id.clone(),
+            resume_position,
+        ));
     }
 
     pub fn on_api_error(&mut self, error: String) {
