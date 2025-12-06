@@ -114,6 +114,29 @@ impl App {
             .send(ApiCommand::FetchItemChapters(item_id.to_string()));
     }
 
+    fn sync_progress(&self) {
+        if let Some(ref item_id) = self.current_item_id {
+            let current_time = self.current_position.as_secs_f64();
+            let duration = self.get_total_duration();
+            let is_finished = duration > 0.0 && current_time >= duration - 1.0;
+
+            let _ = self.api_tx.send(ApiCommand::UpdateProgress {
+                item_id: item_id.clone(),
+                current_time,
+                duration,
+                is_finished,
+            });
+        }
+    }
+
+    fn get_total_duration(&self) -> f64 {
+        self.current_library_item
+            .as_ref()
+            .and_then(|item| item.media.as_ref())
+            .and_then(|media| media.duration)
+            .unwrap_or(self.total_duration.as_secs_f64())
+    }
+
     pub fn on_libraries_loaded(&mut self, libraries: Vec<Library>) {
         self.loading_libraries = false;
         self.libraries = libraries;
@@ -160,6 +183,10 @@ impl App {
             return;
         }
 
+        if let Some(index) = self.library_items.iter().position(|i| i.id == item.id) {
+            self.selected_library_item_index = index;
+        }
+
         self.current_library_item = Some(item.clone());
         self.current_item_id = Some(item.id.clone());
 
@@ -185,10 +212,27 @@ impl App {
     }
 
     pub fn on_player_state_changed(&mut self, state: PlayerState) {
+        let previous_state = self.player_state;
         self.player_state = state;
+
         if self.auto_resume_pending {
             self.auto_resume_pending = false;
             let _ = self.player_tx.send(PlayerCommand::Pause);
+            return;
+        }
+
+        // Sync progress when playback state changes
+        match (previous_state, state) {
+            (PlayerState::Playing, PlayerState::Paused) => {
+                self.sync_progress();
+            }
+            (PlayerState::Playing, PlayerState::Stopped) => {
+                self.sync_progress();
+            }
+            (PlayerState::Paused, PlayerState::Stopped) => {
+                self.sync_progress();
+            }
+            _ => {}
         }
     }
 
@@ -286,6 +330,7 @@ impl App {
     pub fn handle_input(&mut self, key: KeyEvent) -> () {
         match key.code {
             KeyCode::Char('q') => {
+                self.sync_progress();
                 self.should_quit = true;
             }
             KeyCode::Tab => {

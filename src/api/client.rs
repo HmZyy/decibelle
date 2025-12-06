@@ -178,6 +178,42 @@ impl ApiClient {
         }
     }
 
+    pub fn update_media_progress(
+        &self,
+        item_id: &str,
+        current_time: f64,
+        duration: f64,
+        is_finished: bool,
+    ) -> Result<(), ApiError> {
+        let url = format!("{}/api/me/progress/{}", self.base_url, item_id);
+
+        let progress = if duration > 0.0 {
+            (current_time / duration).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        let body = serde_json::json!({
+            "duration": duration,
+            "currentTime": current_time,
+            "progress": progress,
+            "isFinished": is_finished,
+        });
+
+        let resp = self
+            .client
+            .patch(&url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()?;
+
+        if !resp.status().is_success() {
+            return Err(ApiError::Http(resp.status().as_u16()));
+        }
+
+        Ok(())
+    }
+
     pub fn get_continue_listening(
         &self,
         library_id: &str,

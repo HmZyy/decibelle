@@ -1,5 +1,5 @@
 use crate::api::client::ApiClient;
-use crate::api::models::{AudioTrack, find_track_for_position};
+use crate::api::models::find_track_for_position;
 use crate::events::types::{AppEvent, TrackInfo};
 use std::sync::mpsc;
 
@@ -9,6 +9,12 @@ pub enum ApiCommand {
     FetchItemChapters(String),
     DownloadForPlayback(String, f64),
     FetchContinueListening(String),
+    UpdateProgress {
+        item_id: String,
+        current_time: f64,
+        duration: f64,
+        is_finished: bool,
+    },
 }
 
 pub fn spawn(
@@ -114,6 +120,19 @@ pub fn spawn(
                         Err(e) => {
                             eprintln!("Continue listening error: {:?}", e);
                         }
+                    }
+                }
+
+                ApiCommand::UpdateProgress {
+                    item_id,
+                    current_time,
+                    duration,
+                    is_finished,
+                } => {
+                    if let Err(e) =
+                        client.update_media_progress(&item_id, current_time, duration, is_finished)
+                    {
+                        eprintln!("Failed to update progress: {:?}", e);
                     }
                 }
             }
