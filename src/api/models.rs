@@ -43,7 +43,6 @@ pub struct LibrariesResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryItem {
     pub id: String,
-    pub ino: String,
     pub library_id: String,
     pub folder_id: Option<String>,
     pub path: Option<String>,
@@ -59,7 +58,7 @@ pub struct LibraryItem {
     pub is_missing: Option<bool>,
     pub is_invalid: Option<bool>,
     pub media_type: Option<String>,
-    pub media: Media,
+    pub media: Option<Media>,
     pub library_files: Option<Vec<LibraryFile>>,
     pub size: Option<i64>,
     pub num_files: Option<i32>,
@@ -136,7 +135,6 @@ pub struct Chapter {
 #[serde(rename_all = "camelCase")]
 pub struct AudioFile {
     pub index: Option<i32>,
-    pub ino: String,
     pub metadata: FileMetadata,
     pub added_at: Option<i64>,
     pub updated_at: Option<i64>,
@@ -203,7 +201,6 @@ pub struct FileMetadata {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryFile {
-    pub ino: String,
     pub metadata: FileMetadata,
     pub added_at: Option<i64>,
     pub updated_at: Option<i64>,
@@ -213,7 +210,6 @@ pub struct LibraryFile {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EBookFile {
-    pub ino: String,
     pub metadata: FileMetadata,
     pub ebook_format: String,
     pub added_at: Option<i64>,
@@ -246,4 +242,33 @@ pub struct LibraryItemsResponse {
     pub minified: Option<bool>,
     pub collapseseries: Option<bool>,
     pub include: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalizedShelf {
+    pub id: String,
+    pub label: String,
+    pub label_string_key: Option<String>,
+    #[serde(rename = "type")]
+    pub shelf_type: String,
+    pub entities: Vec<LibraryItem>,
+    pub category: Option<String>,
+    pub total: Option<i32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaProgress {
+    pub id: String,
+    pub library_item_id: String,
+    pub episode_id: Option<String>,
+    pub duration: f64,
+    pub progress: f64,
+    pub current_time: f64,
+    pub is_finished: bool,
+    pub hide_from_continue_listening: Option<bool>,
+    pub last_update: i64,
+    pub started_at: i64,
+    pub finished_at: Option<i64>,
 }

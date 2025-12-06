@@ -22,6 +22,8 @@ pub enum AppEvent {
 
     DownloadFinished(PathBuf, f64, TrackInfo),
 
+    ContinueListeningLoaded(crate::api::models::LibraryItem, f64),
+
     ApiError(String),
 }
 

@@ -8,6 +8,7 @@ pub enum ApiCommand {
     FetchLibraryItems(String),
     FetchItemChapters(String),
     DownloadForPlayback(String, f64),
+    FetchContinueListening(String),
 }
 
 pub fn spawn(
@@ -52,7 +53,7 @@ pub fn spawn(
                 ApiCommand::DownloadForPlayback(item_id, position) => {
                     match client.get_library_item(&item_id) {
                         Ok(item) => {
-                            let tracks = item.media.tracks.as_ref();
+                            let tracks = item.media.as_ref().and_then(|m| m.tracks.as_ref());
 
                             match tracks {
                                 Some(tracks) if !tracks.is_empty() => {
@@ -60,8 +61,8 @@ pub fn spawn(
                                         .or_else(|| tracks.first());
 
                                     if let Some(track) = track {
-                                        let track_local_position = position - track.start_offset;
-                                        let track_local_position = track_local_position.max(0.0);
+                                        let track_local_position =
+                                            (position - track.start_offset).max(0.0);
 
                                         match client.download_track(&item_id, track) {
                                             Ok(path) => {
@@ -99,6 +100,19 @@ pub fn spawn(
                         }
                         Err(e) => {
                             let _ = event_tx.send(AppEvent::ApiError(format!("{:?}", e)));
+                        }
+                    }
+                }
+
+                ApiCommand::FetchContinueListening(library_id) => {
+                    match client.get_continue_listening(&library_id) {
+                        Ok(Some((item, position))) => {
+                            let _ =
+                                event_tx.send(AppEvent::ContinueListeningLoaded(item, position));
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            eprintln!("Continue listening error: {:?}", e);
                         }
                     }
                 }

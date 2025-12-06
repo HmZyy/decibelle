@@ -84,6 +84,10 @@ fn main() -> io::Result<()> {
                 AppEvent::DownloadFinished(path, position, track_info) => {
                     app.on_download_finished(path, position, track_info)
                 }
+                AppEvent::ContinueListeningLoaded(item, position) => {
+                    app.on_continue_listening_loaded(item, position)
+                }
+
                 AppEvent::ApiError(err) => app.on_api_error(err),
             },
             Err(mpsc::RecvTimeoutError::Timeout) => {}

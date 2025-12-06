@@ -46,6 +46,7 @@ pub struct App {
 
     // Control
     pub should_quit: bool,
+    pub auto_resume_pending: bool,
     pub error_message: Option<String>,
 }
 
@@ -89,6 +90,7 @@ impl App {
             api_tx,
 
             should_quit: false,
+            auto_resume_pending: true,
             error_message: None,
         }
     }
@@ -119,6 +121,12 @@ impl App {
 
         if let Some(lib) = self.libraries.clone().first() {
             self.load_library_items(&lib.id);
+
+            if self.auto_resume_pending {
+                let _ = self
+                    .api_tx
+                    .send(ApiCommand::FetchContinueListening(lib.id.clone()));
+            }
         }
     }
 
@@ -147,6 +155,27 @@ impl App {
         let _ = self.player_tx.send(PlayerCommand::Play { path, position });
     }
 
+    pub fn on_continue_listening_loaded(&mut self, item: LibraryItem, position: f64) {
+        if !self.auto_resume_pending {
+            return;
+        }
+
+        self.current_library_item = Some(item.clone());
+        self.current_item_id = Some(item.id.clone());
+
+        self.load_chapters(&item.id);
+
+        if let Some(ref media) = item.media {
+            if let Some(ref tracks) = media.tracks {
+                self.current_tracks = tracks.clone();
+            }
+        }
+
+        let _ = self
+            .api_tx
+            .send(ApiCommand::DownloadForPlayback(item.id.clone(), position));
+    }
+
     pub fn on_api_error(&mut self, error: String) {
         self.loading_libraries = false;
         self.loading_items = false;
@@ -157,6 +186,10 @@ impl App {
 
     pub fn on_player_state_changed(&mut self, state: PlayerState) {
         self.player_state = state;
+        if self.auto_resume_pending {
+            self.auto_resume_pending = false;
+            let _ = self.player_tx.send(PlayerCommand::Pause);
+        }
     }
 
     pub fn on_position_update(&mut self, position: Duration) {
@@ -177,21 +210,20 @@ impl App {
             return;
         };
 
-        // If position exceeds current track duration, we need next track
         let track_end = track_info.start_offset + track_info.duration;
         let global_pos = self.current_position.as_secs_f64();
 
         if global_pos >= track_end - 0.5 {
-            // Find and start next track
-            if let Some(next_track) = self
+            let has_next = self
                 .current_tracks
                 .iter()
-                .find(|t| t.index == track_info.index + 1)
-            {
+                .any(|t| t.index == track_info.index + 1);
+
+            if has_next {
                 if let Some(ref item) = self.current_library_item {
                     let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
                         item.id.clone(),
-                        track_end + 0.1, // Start of next track
+                        track_end + 0.1,
                     ));
                 }
             }

@@ -85,11 +85,13 @@ fn draw_library_list(f: &mut Frame, area: Rect, app: &App) {
             .map(|(i, item)| {
                 let is_selected = i == app.selected_library_item_index;
                 let prefix = if is_selected { "> " } else { "  " };
-                let text = format!(
-                    "{}{}",
-                    prefix,
-                    item.media.metadata.title.unwrap_or("N/A".to_string())
-                );
+                let title = item
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.metadata.title.as_ref())
+                    .map(|s| s.as_str())
+                    .unwrap_or("N/A");
+                let text = format!("{}{}", prefix, title);
 
                 let style = if is_focused && is_selected {
                     THEME.selection_style()
@@ -177,7 +179,18 @@ fn draw_info_panel(
     chapter: Option<&Chapter>,
     current_pos: f64,
 ) {
-    let metadata = &item.media.metadata;
+    let media = match &item.media {
+        Some(m) => m,
+        None => {
+            f.render_widget(
+                Paragraph::new("No media information").style(THEME.label_style()),
+                area,
+            );
+            return;
+        }
+    };
+    let metadata = &media.metadata;
+
     let label = THEME.label_style();
     let value = THEME.value_style();
 
@@ -276,7 +289,7 @@ fn draw_info_panel(
     );
 
     // Duration
-    let duration = item.media.duration.unwrap_or(0.0);
+    let duration = media.duration.unwrap_or(0.0);
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Duration:  ", label),
@@ -286,7 +299,7 @@ fn draw_info_panel(
     );
 
     // Size
-    let size = item.media.size.unwrap_or(0);
+    let size = media.size.unwrap_or(0);
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Size:      ", label),
@@ -296,8 +309,8 @@ fn draw_info_panel(
     );
 
     // Chapters / Tracks
-    let num_chapters = item.media.num_chapters.unwrap_or(0);
-    let num_tracks = item.media.num_tracks.unwrap_or(0);
+    let num_chapters = media.num_chapters.unwrap_or(0);
+    let num_tracks = media.num_tracks.unwrap_or(0);
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Chapters:  ", label),
@@ -504,7 +517,8 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
     let book_duration = app
         .current_library_item
         .as_ref()
-        .and_then(|item| item.media.duration)
+        .and_then(|item| item.media.as_ref())
+        .and_then(|media| media.duration)
         .unwrap_or(0.0);
 
     let book_position = app.current_position.as_secs_f64();

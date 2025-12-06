@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::api::models::{
     AudioTrack, Chapter, LibrariesResponse, Library, LibraryItem, LibraryItemsResponse,
+    MediaProgress, PersonalizedShelf,
 };
 use crate::config::Config;
 use reqwest::blocking::Client;
@@ -70,7 +71,10 @@ impl ApiClient {
             .error_for_status()?;
 
         let item: LibraryItem = resp.json()?;
-        Ok(item.media.chapters.unwrap_or_default())
+        Ok(item
+            .media
+            .map(|m| m.chapters.unwrap_or_default())
+            .unwrap_or_default())
     }
 
     pub fn download_audio(&self, item_id: &str) -> Result<PathBuf, ApiError> {
@@ -145,6 +149,56 @@ impl ApiClient {
         let _ = std::fs::write(&path, &bytes);
 
         Ok(path)
+    }
+
+    pub fn get_personalized(&self, library_id: &str) -> Result<Vec<PersonalizedShelf>, ApiError> {
+        let url = format!(
+            "{}/api/libraries/{}/personalized",
+            self.base_url, library_id
+        );
+
+        let resp = self.client.get(&url).bearer_auth(&self.api_key).send()?;
+
+        if !resp.status().is_success() {
+            return Err(ApiError::Http(resp.status().as_u16()));
+        }
+
+        Ok(resp.json()?)
+    }
+
+    pub fn get_media_progress(&self, item_id: &str) -> Result<MediaProgress, ApiError> {
+        let url = format!("{}/api/me/progress/{}", self.base_url, item_id);
+
+        let resp = self.client.get(&url).bearer_auth(&self.api_key).send()?;
+
+        match resp.status().as_u16() {
+            200 => Ok(resp.json()?),
+            404 => Err(ApiError::NotFound),
+            code => Err(ApiError::Http(code)),
+        }
+    }
+
+    pub fn get_continue_listening(
+        &self,
+        library_id: &str,
+    ) -> Result<Option<(LibraryItem, f64)>, ApiError> {
+        let shelves = self.get_personalized(library_id)?;
+
+        let item = shelves
+            .iter()
+            .find(|s| s.id == "continue-listening")
+            .and_then(|s| s.entities.iter().find(|e| e.media.is_some()).cloned());
+
+        match item {
+            Some(item) => {
+                let pos = self
+                    .get_media_progress(&item.id)
+                    .map(|p| p.current_time)
+                    .unwrap_or(0.0);
+                Ok(Some((item, pos)))
+            }
+            None => Ok(None),
+        }
     }
 }
 
