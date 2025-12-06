@@ -25,8 +25,9 @@ fn main() -> io::Result<()> {
         }
     };
 
-    let mut terminal = ratatui::init();
+    ui::theme::init_theme(config.theme);
 
+    let mut terminal = ratatui::init();
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
     let (player_cmd_tx, player_cmd_rx) = mpsc::channel::<PlayerCommand>();
     let (api_cmd_tx, api_cmd_rx) = mpsc::channel::<ApiCommand>();
@@ -87,7 +88,6 @@ fn main() -> io::Result<()> {
                 AppEvent::ContinueListeningLoaded(item, position) => {
                     app.on_continue_listening_loaded(item, position)
                 }
-
                 AppEvent::ApiError(err) => app.on_api_error(err),
             },
             Err(mpsc::RecvTimeoutError::Timeout) => {}

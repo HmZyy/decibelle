@@ -12,10 +12,8 @@ use crate::{
     api::models::{Chapter, LibraryItem},
     app::state::{App, Focus},
     player::commands::PlayerState,
-    ui::{cover::ImageCache, format_duration, format_duration_long, format_size},
+    ui::{cover::ImageCache, format_duration, format_duration_long, format_size, theme::get_theme},
 };
-
-use super::theme::THEME;
 
 const ROUNDED_BORDER: border::Set = border::ROUNDED;
 
@@ -28,7 +26,6 @@ fn block_with_title(title: &'_ str) -> Block<'_> {
 
 pub fn render(f: &mut Frame, app: &App, image_cache: &mut ImageCache) {
     let area = f.area();
-
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -46,9 +43,10 @@ pub fn render(f: &mut Frame, app: &App, image_cache: &mut ImageCache) {
 }
 
 fn draw_header(f: &mut Frame, area: Rect) {
+    let theme = get_theme();
     let header = Paragraph::new("Decibelle")
-        .style(THEME.header_style())
-        .block(block_with_title(" 🎧 ").border_style(THEME.border_style(false)))
+        .style(theme.header_style())
+        .block(block_with_title(" 🎧 ").border_style(theme.border_style(false)))
         .centered();
     f.render_widget(header, area);
 }
@@ -70,8 +68,9 @@ fn draw_main_content(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Ima
 }
 
 fn draw_library_list(f: &mut Frame, area: Rect, app: &App) {
+    let theme = get_theme();
     let is_focused = app.focus == Focus::Libraries;
-    let border_style = THEME.border_style(is_focused);
+    let border_style = theme.border_style(is_focused);
 
     if app.libraries.len() > 0 {
         let selected_library = app.libraries[app.selected_library_index].clone();
@@ -92,11 +91,10 @@ fn draw_library_list(f: &mut Frame, area: Rect, app: &App) {
                     .map(|s| s.as_str())
                     .unwrap_or("N/A");
                 let text = format!("{}{}", prefix, title);
-
                 let style = if is_focused && is_selected {
-                    THEME.selection_style()
+                    theme.selection_style()
                 } else {
-                    THEME.value_style()
+                    theme.value_style()
                 };
                 ListItem::new(text).style(style)
             })
@@ -117,16 +115,16 @@ fn draw_library_list(f: &mut Frame, area: Rect, app: &App) {
             width: area.width.saturating_sub(4),
             height: 1,
         };
-
         let no_library = Paragraph::new("No library loaded")
             .alignment(Alignment::Center)
-            .style(THEME.label_style());
+            .style(theme.label_style());
         f.render_widget(no_library, inner);
     }
 }
 
 fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut ImageCache) {
-    let block = block_with_title(" ● Now Playing ").border_style(THEME.border_style(false));
+    let theme = get_theme();
+    let block = block_with_title(" ● Now Playing ").border_style(theme.border_style(false));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -136,7 +134,6 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(inner);
-
             draw_info_panel(
                 f,
                 panels[0],
@@ -151,7 +148,6 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(inner);
-
             draw_info_panel(f, panels[0], item, None, 0.0);
             draw_thumbnail(f, panels[1], item, image_cache);
         }
@@ -166,7 +162,7 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
             };
             let no_playback = Paragraph::new("No audiobook selected")
                 .alignment(Alignment::Center)
-                .style(THEME.label_style());
+                .style(theme.label_style());
             f.render_widget(no_playback, text_area);
         }
     }
@@ -179,20 +175,21 @@ fn draw_info_panel(
     chapter: Option<&Chapter>,
     current_pos: f64,
 ) {
+    let theme = get_theme();
     let media = match &item.media {
         Some(m) => m,
         None => {
             f.render_widget(
-                Paragraph::new("No media information").style(THEME.label_style()),
+                Paragraph::new("No media information").style(theme.label_style()),
                 area,
             );
             return;
         }
     };
-    let metadata = &media.metadata;
 
-    let label = THEME.label_style();
-    let value = THEME.value_style();
+    let metadata = &media.metadata;
+    let label = theme.label_style();
+    let value = theme.value_style();
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -222,7 +219,7 @@ fn draw_info_panel(
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Title:     ", label),
-            Span::styled(title, THEME.title_style()),
+            Span::styled(title, theme.title_style()),
         ])),
         chunks[0],
     );
@@ -232,7 +229,7 @@ fn draw_info_panel(
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Subtitle:  ", label),
-            Span::styled(subtitle, Style::new().fg(THEME.accent)),
+            Span::styled(subtitle, Style::new().fg(theme.accent)),
         ])),
         chunks[1],
     );
@@ -263,7 +260,7 @@ fn draw_info_panel(
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("Series:    ", label),
-            Span::styled(series_display, Style::new().fg(THEME.info)),
+            Span::styled(series_display, Style::new().fg(theme.info)),
         ])),
         chunks[4],
     );
@@ -326,7 +323,7 @@ fn draw_info_panel(
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled("Chapter:   ", label),
-                Span::styled(&ch.title, Style::new().fg(THEME.accent_alt)),
+                Span::styled(&ch.title, Style::new().fg(theme.accent_alt)),
             ])),
             chunks[13],
         );
@@ -334,6 +331,7 @@ fn draw_info_panel(
         let chapter_start = ch.start;
         let chapter_duration = ch.end - ch.start;
         let elapsed = (current_pos - chapter_start).max(0.0);
+
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled("Time:      ", label),
@@ -352,16 +350,19 @@ fn draw_info_panel(
 }
 
 fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &mut ImageCache) {
+    let theme = get_theme();
     let inner = Rect {
         x: area.x + 1,
         y: area.y + 1,
         width: area.width.saturating_sub(2),
         height: area.height.saturating_sub(2),
     };
+
     let block = Block::default()
         .borders(Borders::ALL)
         .border_set(ROUNDED_BORDER)
-        .border_style(Style::new().fg(THEME.fg_dim));
+        .border_style(Style::new().fg(theme.fg_dim));
+
     f.render_widget(block.clone(), inner);
     let image_area = block.inner(inner);
 
@@ -389,14 +390,15 @@ fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &m
     f.render_widget(
         Paragraph::new("Loading cover...")
             .alignment(Alignment::Center)
-            .style(THEME.label_style()),
+            .style(theme.label_style()),
         text_area,
     );
 }
 
 fn draw_chapters(f: &mut Frame, area: Rect, app: &App) {
+    let theme = get_theme();
     let is_focused = app.focus == Focus::Chapters;
-    let border_style = THEME.border_style(is_focused);
+    let border_style = theme.border_style(is_focused);
 
     let is_current_item = app
         .current_item_id
@@ -425,11 +427,11 @@ fn draw_chapters(f: &mut Frame, area: Rect, app: &App) {
             };
 
             let style = if is_current {
-                THEME.current_style()
+                theme.current_style()
             } else if is_focused && is_selected {
-                THEME.selection_style()
+                theme.selection_style()
             } else {
-                THEME.value_style()
+                theme.value_style()
             };
 
             let duration_str = format_duration(chapter.end - chapter.start);
@@ -456,8 +458,9 @@ fn draw_chapters(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
+    let theme = get_theme();
     let is_focused = app.focus == Focus::Controls;
-    let border_style = THEME.border_style(is_focused);
+    let border_style = theme.border_style(is_focused);
 
     let title = match &app.current_chapter {
         Some(ch) => format!(" ● Playing: {} ", ch.title),
@@ -471,16 +474,16 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1), // Controls
-            Constraint::Length(1), // Spacing
-            Constraint::Length(1), // Chapter progress
-            Constraint::Length(1), // Book progress
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
         ])
         .split(inner);
 
     let (play_icon, play_label) = match app.player_state {
         PlayerState::Playing => ("󰏤", "Pause"),
-        PlayerState::Paused => ("", "Resume"),
+        PlayerState::Paused => ("", "Resume"),
         _ => ("", "Play"),
     };
 
@@ -489,14 +492,13 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
         play_icon, play_label
     ))
     .alignment(Alignment::Center)
-    .style(THEME.value_style());
+    .style(theme.value_style());
     f.render_widget(controls, chunks[0]);
 
     let (chapter_start, chapter_duration) = match app.current_chapter.as_ref() {
         Some(ch) => (ch.start, ch.end - ch.start),
         None => (0.0, 0.0),
     };
-
     let chapter_position = (app.current_position.as_secs_f64() - chapter_start).max(0.0);
     let chapter_progress = if chapter_duration > 0.0 {
         (chapter_position / chapter_duration).clamp(0.0, 1.0)
@@ -520,7 +522,6 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
         .and_then(|item| item.media.as_ref())
         .and_then(|media| media.duration)
         .unwrap_or(0.0);
-
     let book_position = app.current_position.as_secs_f64();
     let book_progress = if book_duration > 0.0 {
         (book_position / book_duration).clamp(0.0, 1.0)
@@ -548,34 +549,34 @@ fn draw_progress_bar(
     progress: f64,
     app: &App,
 ) {
+    let theme = get_theme();
     let progress_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(8), // Label
-            Constraint::Length(8), // Current time
-            Constraint::Length(1), // Space
-            Constraint::Min(0),    // Slider
-            Constraint::Length(1), // Space
-            Constraint::Length(8), // Total time
+            Constraint::Length(8),
+            Constraint::Length(8),
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+            Constraint::Length(8),
         ])
         .split(area);
 
     f.render_widget(
-        Paragraph::new(label).style(THEME.label_style()),
+        Paragraph::new(label).style(theme.label_style()),
         progress_chunks[0],
     );
-
     f.render_widget(
         Paragraph::new(format_duration(current))
             .alignment(Alignment::Right)
-            .style(THEME.value_style()),
+            .style(theme.value_style()),
         progress_chunks[1],
     );
 
     let slider_width = progress_chunks[3].width as usize;
     let filled = ((progress * slider_width as f64) as usize).min(slider_width);
     let is_playing = matches!(app.player_state, PlayerState::Playing);
-    let slider_color = THEME.slider_color(is_playing);
+    let slider_color = theme.slider_color(is_playing);
 
     let mut slider = String::new();
     for i in 0..slider_width {
@@ -595,7 +596,7 @@ fn draw_progress_bar(
         ),
         Span::styled(
             slider.chars().skip(filled).collect::<String>(),
-            Style::new().fg(THEME.fg_dim),
+            Style::new().fg(theme.fg_dim),
         ),
     ];
     f.render_widget(Paragraph::new(Line::from(slider_spans)), progress_chunks[3]);
@@ -603,12 +604,13 @@ fn draw_progress_bar(
     f.render_widget(
         Paragraph::new(format_duration(total))
             .alignment(Alignment::Left)
-            .style(THEME.value_style()),
+            .style(theme.value_style()),
         progress_chunks[5],
     );
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
+    let theme = get_theme();
     let keybinds = match app.focus {
         Focus::Libraries => {
             "↑↓/jk: Navigate | →/l/Enter: Select | L/H: Switch Library | Tab: Focus | Space: Pause | q: Quit"
@@ -623,8 +625,8 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
 
     f.render_widget(
         Paragraph::new(keybinds)
-            .style(THEME.label_style())
-            .block(block_with_title("").border_style(THEME.border_style(false))),
+            .style(theme.label_style())
+            .block(block_with_title("").border_style(theme.border_style(false))),
         area,
     );
 }

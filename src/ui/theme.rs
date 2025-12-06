@@ -1,4 +1,28 @@
 use ratatui::style::{Color, Modifier, Style};
+use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemeName {
+    TokyoNight,
+    #[default]
+    CatppuccinMocha,
+}
+
+static CURRENT_THEME: OnceLock<Theme> = OnceLock::new();
+
+pub fn init_theme(name: ThemeName) {
+    let theme = match name {
+        ThemeName::TokyoNight => Theme::tokyo_night(),
+        ThemeName::CatppuccinMocha => Theme::catppuccin_mocha(),
+    };
+    let _ = CURRENT_THEME.set(theme);
+}
+
+pub fn get_theme() -> &'static Theme {
+    CURRENT_THEME.get_or_init(Theme::catppuccin_mocha)
+}
 
 #[derive(Clone, Copy)]
 pub struct Theme {
@@ -78,7 +102,6 @@ impl Theme {
         }
     }
 
-    // Computed styles
     pub fn border_style(&self, focused: bool) -> Style {
         Style::new().fg(if focused {
             self.border_focused
@@ -121,5 +144,3 @@ impl Theme {
         if playing { self.playing } else { self.paused }
     }
 }
-
-pub const THEME: Theme = Theme::catppuccin_mocha();

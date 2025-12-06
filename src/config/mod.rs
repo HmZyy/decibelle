@@ -3,10 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::ui::theme::ThemeName;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub server_url: String,
     pub api_key: String,
+    #[serde(default)]
+    pub theme: ThemeName,
 }
 
 impl Default for Config {
@@ -14,6 +18,7 @@ impl Default for Config {
         Self {
             server_url: "http://localhost:13378".to_string(),
             api_key: "not set yet".to_string(),
+            theme: ThemeName::default(),
         }
     }
 }
@@ -44,7 +49,7 @@ pub fn load_or_create_config() -> Result<Config> {
         eprintln!("\nPlease edit the config file and set your API key and server URL:");
         eprintln!("  server_url: Your Audiobookshelf server URL");
         eprintln!("  api_key: Your Audiobookshelf API key");
-
+        eprintln!("  theme: tokyo_night or catppuccin_mocha");
         anyhow::bail!("Config file not configured. Please set your API key and server URL.");
     }
 
