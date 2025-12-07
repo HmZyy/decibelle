@@ -1,17 +1,17 @@
 pub mod state;
 
-pub fn incrememnt(x: usize, len: usize, wrap: bool) -> usize {
-    if x == len - 1 {
-        if wrap { 0 } else { len - 1 }
+pub fn increment(x: usize, len: usize, wrap: bool) -> usize {
+    if wrap {
+        (x + 1) % len
     } else {
-        x + 1
+        x.saturating_add(1).min(len - 1)
     }
 }
 
 pub fn decrement(x: usize, len: usize, wrap: bool) -> usize {
-    if x == 0 {
-        if wrap { len - 1 } else { 0 }
+    if wrap {
+        (x + len - 1) % len
     } else {
-        x - 1
+        x.saturating_sub(1)
     }
 }

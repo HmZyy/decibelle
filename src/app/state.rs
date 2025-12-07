@@ -7,7 +7,7 @@ use ratatui::layout::Rect;
 
 use crate::api::models::{AudioTrack, Chapter, Library, LibraryItem};
 use crate::api::thread::ApiCommand;
-use crate::app::{decrement, incrememnt};
+use crate::app::{decrement, increment};
 use crate::events::types::TrackInfo;
 use crate::player::commands::{PlayerCommand, PlayerState};
 use crate::ui::notifications::NotificationManager;
@@ -610,7 +610,7 @@ impl App {
 
     pub fn next_library(&mut self) {
         let library_count = self.libraries.len();
-        self.selected_library_index = incrememnt(self.selected_library_index, library_count, false);
+        self.selected_library_index = increment(self.selected_library_index, library_count, false);
     }
 
     pub fn previous_library(&mut self) {
@@ -621,7 +621,7 @@ impl App {
     pub fn next_library_item(&mut self) {
         let library_items_count = self.library_items.len();
         self.selected_library_item_index =
-            incrememnt(self.selected_library_item_index, library_items_count, false);
+            increment(self.selected_library_item_index, library_items_count, false);
     }
 
     pub fn previous_libaray_item(&mut self) {
@@ -632,8 +632,7 @@ impl App {
 
     pub fn next_chapter(&mut self) {
         let chapters_count = self.chapters.len();
-        self.selected_chapter_index =
-            incrememnt(self.selected_chapter_index, chapters_count, false);
+        self.selected_chapter_index = increment(self.selected_chapter_index, chapters_count, false);
     }
 
     pub fn previous_chapter(&mut self) {
