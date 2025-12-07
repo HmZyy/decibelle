@@ -205,22 +205,22 @@ fn draw_info_panel(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(0),
+            Constraint::Length(1), // 0: Title
+            Constraint::Length(1), // 1: Subtitle
+            Constraint::Length(1), // 2: Author
+            Constraint::Length(1), // 3: Narrator
+            Constraint::Length(1), // 4: Series
+            Constraint::Length(1), // 5: Publisher
+            Constraint::Length(1), // 6: Year
+            Constraint::Length(1), // 7: (spacer)
+            Constraint::Length(1), // 8: Duration
+            Constraint::Length(1), // 9: Size
+            Constraint::Length(1), // 10: Chapters/Tracks
+            Constraint::Length(1), // 11: (spacer)
+            Constraint::Length(1), // 12: Current Chapter
+            Constraint::Length(1), // 13: Time
+            Constraint::Length(1), // 14: (spacer)
+            Constraint::Min(0),    // 15: Description
         ])
         .margin(1)
         .split(area);
@@ -283,7 +283,7 @@ fn draw_info_panel(
             Span::styled("Publisher: ", label),
             Span::styled(publisher, value),
         ])),
-        chunks[6],
+        chunks[5],
     );
 
     // Year
@@ -293,7 +293,7 @@ fn draw_info_panel(
             Span::styled("Year:      ", label),
             Span::styled(year, value),
         ])),
-        chunks[7],
+        chunks[6],
     );
 
     // Duration
@@ -303,7 +303,7 @@ fn draw_info_panel(
             Span::styled("Duration:  ", label),
             Span::styled(format_duration_long(duration), value),
         ])),
-        chunks[9],
+        chunks[8],
     );
 
     // Size
@@ -313,7 +313,7 @@ fn draw_info_panel(
             Span::styled("Size:      ", label),
             Span::styled(format_size(size), value),
         ])),
-        chunks[10],
+        chunks[9],
     );
 
     // Chapters / Tracks
@@ -326,7 +326,7 @@ fn draw_info_panel(
             Span::styled("  Tracks: ", label),
             Span::styled(format!("{}", num_tracks), value),
         ])),
-        chunks[11],
+        chunks[10],
     );
 
     // Current Chapter
@@ -336,7 +336,7 @@ fn draw_info_panel(
                 Span::styled("Chapter:   ", label),
                 Span::styled(&ch.title, Style::new().fg(theme.accent_alt)),
             ])),
-            chunks[13],
+            chunks[12],
         );
 
         let chapter_start = ch.start;
@@ -355,8 +355,48 @@ fn draw_info_panel(
                     value,
                 ),
             ])),
-            chunks[14],
+            chunks[13],
         );
+    }
+
+    if let Some(description) = &metadata.description {
+        if !description.is_empty() && chunks[15].height > 0 {
+            // Strip HTML tags for plain text display
+            let plain_desc = description
+                .replace("<br>", " ")
+                .replace("<br/>", " ")
+                .replace("<br />", " ")
+                .replace("</p>", " ")
+                .replace("<p>", "");
+            // Remove any remaining HTML tags
+            let re_cleaned: String = plain_desc
+                .chars()
+                .fold((String::new(), false), |(mut acc, in_tag), c| {
+                    if c == '<' {
+                        (acc, true)
+                    } else if c == '>' {
+                        (acc, false)
+                    } else if !in_tag {
+                        acc.push(c);
+                        (acc, false)
+                    } else {
+                        (acc, true)
+                    }
+                })
+                .0;
+
+            let desc_block = Block::default()
+                .borders(Borders::TOP)
+                .border_style(Style::new().fg(theme.fg_dim))
+                .title(Span::styled(" Description ", label));
+
+            let desc_para = Paragraph::new(re_cleaned.trim())
+                .style(theme.value_style())
+                .wrap(ratatui::widgets::Wrap { trim: true })
+                .block(desc_block);
+
+            f.render_widget(desc_para, chunks[15]);
+        }
     }
 }
 
