@@ -1,4 +1,5 @@
 pub mod cover;
+pub mod notifications;
 pub mod render;
 pub mod theme;
 
@@ -13,6 +14,7 @@ pub fn format_duration(seconds: f64) -> String {
         format!("{:02}:{:02}", minutes, secs)
     }
 }
+
 fn format_duration_long(seconds: f64) -> String {
     let total_secs = seconds as u64;
     let hours = total_secs / 3600;

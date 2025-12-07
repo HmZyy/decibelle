@@ -1,11 +1,12 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::Style,
+    style::{Modifier, Style},
     symbols::border,
     text::{Line, Span},
     widgets::{
-        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Block, Borders, Clear, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
+        ScrollbarState,
     },
 };
 use ratatui_image::StatefulImage;
@@ -14,10 +15,15 @@ use crate::{
     api::models::{Chapter, LibraryItem},
     app::state::{App, Focus},
     player::commands::PlayerState,
-    ui::{cover::ImageCache, format_duration, format_duration_long, format_size, theme::get_theme},
+    ui::{
+        cover::ImageCache, format_duration, format_duration_long, format_size,
+        notifications::Notification, theme::get_theme,
+    },
 };
 
 const ROUNDED_BORDER: border::Set = border::ROUNDED;
+const NOTIFICATION_WIDTH: u16 = 40;
+const NOTIFICATION_HEIGHT: u16 = 3;
 
 fn block_with_title(title: &'_ str) -> Block<'_> {
     Block::default()
@@ -29,6 +35,8 @@ fn block_with_title(title: &'_ str) -> Block<'_> {
 pub fn render(f: &mut Frame, app: &mut App, image_cache: &mut ImageCache) {
     let theme = get_theme();
     let area = f.area();
+
+    app.notifications.tick();
 
     let background = Block::default().style(Style::default().bg(theme.bg));
     f.render_widget(background, area);
@@ -49,6 +57,58 @@ pub fn render(f: &mut Frame, app: &mut App, image_cache: &mut ImageCache) {
     draw_footer(f, chunks[3], app);
 
     app.layout_regions.controls = Some(chunks[2]);
+
+    draw_notifications(f, area, app.notifications.active_notifications());
+}
+
+fn draw_notifications(f: &mut Frame, area: Rect, notifications: &[Notification]) {
+    let theme = get_theme();
+
+    for (i, notif) in notifications.iter().rev().take(5).enumerate() {
+        let y_offset = (i as u16) * (NOTIFICATION_HEIGHT + 1);
+
+        if y_offset + NOTIFICATION_HEIGHT > area.height {
+            break;
+        }
+
+        let notif_area = Rect {
+            x: area.width.saturating_sub(NOTIFICATION_WIDTH + 2),
+            y: area.y + 1 + y_offset,
+            width: NOTIFICATION_WIDTH,
+            height: NOTIFICATION_HEIGHT,
+        };
+
+        let color = theme.notification_color(notif.level);
+        let prefix = notif.level.prefix();
+
+        f.render_widget(Clear, notif_area);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_set(ROUNDED_BORDER)
+            .border_style(Style::new().fg(color))
+            .style(Style::default().bg(theme.bg));
+
+        let inner = block.inner(notif_area);
+        f.render_widget(block, notif_area);
+
+        let max_text_len = (inner.width as usize).saturating_sub(prefix.len() + 3);
+        let text = if notif.text.len() > max_text_len {
+            format!("{}...", &notif.text[..max_text_len.saturating_sub(3)])
+        } else {
+            notif.text.clone()
+        };
+
+        let content = Line::from(vec![
+            Span::styled(
+                format!("{} - ", prefix),
+                Style::new().fg(color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(text, Style::new().fg(theme.fg)),
+        ]);
+
+        f.render_widget(Paragraph::new(content), inner);
+    }
 }
 
 fn draw_header(f: &mut Frame, area: Rect) {
@@ -71,7 +131,6 @@ fn draw_main_content(f: &mut Frame, area: Rect, app: &mut App, image_cache: &mut
         .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
         .split(main_chunks[0]);
 
-    // Store regions for mouse hit detection
     app.layout_regions.library_list = Some(top_chunks[0]);
     app.layout_regions.chapters = Some(top_chunks[1]);
 
@@ -142,7 +201,6 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &mut App, image_cache: &mut 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Store region for mouse hit detection
     app.layout_regions.info_panel = Some(area);
 
     match (&app.current_library_item, &app.current_chapter) {
@@ -199,8 +257,8 @@ fn draw_info_panel(
     f: &mut Frame,
     area: Rect,
     item: &LibraryItem,
-    chapter: Option<&Chapter>,
-    current_pos: f64,
+    _chapter: Option<&Chapter>,
+    _current_pos: f64,
     scroll: &mut u16,
     is_focused: bool,
 ) {
@@ -303,44 +361,14 @@ fn draw_info_panel(
     // Spacer
     lines.push(Line::from(""));
 
-    // // Current Chapter
-    // if let Some(ch) = chapter {
-    //     lines.push(Line::from(vec![
-    //         Span::styled("Chapter:   ", label),
-    //         Span::styled(&ch.title, Style::new().fg(theme.accent_alt)),
-    //     ]));
-    //
-    //     let chapter_start = ch.start;
-    //     let chapter_duration = ch.end - ch.start;
-    //     let elapsed = (current_pos - chapter_start).max(0.0);
-    //
-    //     lines.push(Line::from(vec![
-    //         Span::styled("Time:      ", label),
-    //         Span::styled(
-    //             format!(
-    //                 "{} / {}",
-    //                 format_duration(elapsed),
-    //                 format_duration(chapter_duration)
-    //             ),
-    //             value,
-    //         ),
-    //     ]));
-    //
-    //     // Spacer
-    //     lines.push(Line::from(""));
-    // }
-
-    // Description
     if let Some(description) = &metadata.description {
         if !description.is_empty() {
-            // Strip HTML tags for plain text display
             let plain_desc = description
                 .replace("<br>", " ")
                 .replace("<br/>", " ")
                 .replace("<br />", " ")
                 .replace("</p>", " ")
                 .replace("<p>", "");
-            // Remove any remaining HTML tags
             let re_cleaned: String = plain_desc
                 .chars()
                 .fold((String::new(), false), |(mut acc, in_tag), c| {
@@ -389,10 +417,9 @@ fn draw_info_panel(
     let inner_area = Rect {
         x: area.x + 1,
         y: area.y + 1,
-        width: area.width.saturating_sub(3), // room for scrollbar
+        width: area.width.saturating_sub(3),
         height: visible_height,
     };
-
     let para = Paragraph::new(lines).scroll((*scroll, 0));
     f.render_widget(para, inner_area);
 

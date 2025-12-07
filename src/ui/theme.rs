@@ -2,6 +2,8 @@ use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
+use crate::ui::notifications::NotificationLevel;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeName {
@@ -53,136 +55,136 @@ pub struct Theme {
     pub paused: Color,
     pub info: Color,
     pub title: Color,
+
+    // Notification colors
+    pub notif_debug: Color,
+    pub notif_info: Color,
+    pub notif_warning: Color,
+    pub notif_error: Color,
 }
 
 impl Theme {
     pub const fn tokyo_night() -> Self {
         Self {
-            // Base
-            bg: Color::Rgb(26, 27, 38),           // #1a1b26
-            bg_highlight: Color::Rgb(41, 46, 66), // #292e42
-            fg: Color::Rgb(192, 202, 245),        // #c0caf5
-            fg_dim: Color::Rgb(86, 95, 137),      // #565f89
-
-            // UI elements
-            border: Color::Rgb(61, 89, 161),           // #3d59a1
-            border_focused: Color::Rgb(187, 154, 247), // #bb9af7
-            selection_bg: Color::Rgb(41, 46, 66),      // #292e42
-            current_bg: Color::Rgb(61, 89, 161),       // #3d59a1
-
-            // Accents
-            accent: Color::Rgb(125, 207, 255),     // #7dcfff
-            accent_alt: Color::Rgb(255, 158, 100), // #ff9e64
-
-            // Semantic
-            playing: Color::Rgb(158, 206, 106), // #9ece6a
-            paused: Color::Rgb(224, 175, 104),  // #e0af68
-            info: Color::Rgb(187, 154, 247),    // #bb9af7
-            title: Color::Rgb(122, 162, 247),   // #7aa2f7
+            bg: Color::Rgb(26, 27, 38),
+            bg_highlight: Color::Rgb(41, 46, 66),
+            fg: Color::Rgb(192, 202, 245),
+            fg_dim: Color::Rgb(86, 95, 137),
+            border: Color::Rgb(61, 89, 161),
+            border_focused: Color::Rgb(187, 154, 247),
+            selection_bg: Color::Rgb(41, 46, 66),
+            current_bg: Color::Rgb(61, 89, 161),
+            accent: Color::Rgb(125, 207, 255),
+            accent_alt: Color::Rgb(255, 158, 100),
+            playing: Color::Rgb(158, 206, 106),
+            paused: Color::Rgb(224, 175, 104),
+            info: Color::Rgb(187, 154, 247),
+            title: Color::Rgb(122, 162, 247),
+            notif_debug: Color::Rgb(192, 202, 245),
+            notif_info: Color::Rgb(122, 162, 247),
+            notif_warning: Color::Rgb(255, 158, 100),
+            notif_error: Color::Rgb(247, 118, 142),
         }
     }
 
     pub const fn catppuccin_mocha() -> Self {
         Self {
-            // Base
-            bg: Color::Rgb(30, 30, 46),           // #1e1e2e
-            bg_highlight: Color::Rgb(49, 50, 68), // #313244
-            fg: Color::Rgb(205, 214, 244),        // #cdd6f4
-            fg_dim: Color::Rgb(108, 112, 134),    // #6c7086
-
-            // UI elements
-            border: Color::Rgb(137, 180, 250),         // #89b4fa
-            border_focused: Color::Rgb(203, 166, 247), // #cba6f7
-            selection_bg: Color::Rgb(69, 71, 90),      // #45475a
-            current_bg: Color::Rgb(137, 180, 250),     // #89b4fa
-
-            // Accents
-            accent: Color::Rgb(148, 226, 213),     // #94e2d5
-            accent_alt: Color::Rgb(250, 179, 135), // #fab387
-
-            // Semantic
-            playing: Color::Rgb(166, 227, 161), // #a6e3a1
-            paused: Color::Rgb(249, 226, 175),  // #f9e2af
-            info: Color::Rgb(203, 166, 247),    // #cba6f7
-            title: Color::Rgb(137, 180, 250),   // #89b4fa
+            bg: Color::Rgb(30, 30, 46),
+            bg_highlight: Color::Rgb(49, 50, 68),
+            fg: Color::Rgb(205, 214, 244),
+            fg_dim: Color::Rgb(108, 112, 134),
+            border: Color::Rgb(137, 180, 250),
+            border_focused: Color::Rgb(203, 166, 247),
+            selection_bg: Color::Rgb(69, 71, 90),
+            current_bg: Color::Rgb(137, 180, 250),
+            accent: Color::Rgb(148, 226, 213),
+            accent_alt: Color::Rgb(250, 179, 135),
+            playing: Color::Rgb(166, 227, 161),
+            paused: Color::Rgb(249, 226, 175),
+            info: Color::Rgb(203, 166, 247),
+            title: Color::Rgb(137, 180, 250),
+            notif_debug: Color::Rgb(205, 214, 244),
+            notif_info: Color::Rgb(137, 180, 250),
+            notif_warning: Color::Rgb(250, 179, 135),
+            notif_error: Color::Rgb(243, 139, 168),
         }
     }
 
     pub const fn gruvbox() -> Self {
         Self {
-            // Base
-            bg: Color::Rgb(60, 56, 54),           // #3c3836
-            bg_highlight: Color::Rgb(80, 73, 69), // derived
-            fg: Color::Rgb(235, 219, 178),        // #ebdbb2
-            fg_dim: Color::Rgb(146, 131, 116),    // #928374
-
-            // UI elements
-            border: Color::Rgb(69, 133, 136),          // #458588
-            border_focused: Color::Rgb(142, 192, 124), // #8ec07c
-            selection_bg: Color::Rgb(80, 73, 69),      // derived
-            current_bg: Color::Rgb(69, 133, 136),      // #458588
-
-            // Accents
-            accent: Color::Rgb(142, 192, 124),    // #8ec07c
-            accent_alt: Color::Rgb(215, 153, 33), // #d79921
-
-            // Semantic
-            playing: Color::Rgb(142, 192, 124), // #8ec07c
-            paused: Color::Rgb(215, 153, 33),   // #d79921
-            info: Color::Rgb(69, 133, 136),     // #458588
-            title: Color::Rgb(204, 36, 29),     // #cc241d
+            bg: Color::Rgb(60, 56, 54),
+            bg_highlight: Color::Rgb(80, 73, 69),
+            fg: Color::Rgb(235, 219, 178),
+            fg_dim: Color::Rgb(146, 131, 116),
+            border: Color::Rgb(69, 133, 136),
+            border_focused: Color::Rgb(142, 192, 124),
+            selection_bg: Color::Rgb(80, 73, 69),
+            current_bg: Color::Rgb(69, 133, 136),
+            accent: Color::Rgb(142, 192, 124),
+            accent_alt: Color::Rgb(215, 153, 33),
+            playing: Color::Rgb(142, 192, 124),
+            paused: Color::Rgb(215, 153, 33),
+            info: Color::Rgb(69, 133, 136),
+            title: Color::Rgb(204, 36, 29),
+            notif_debug: Color::Rgb(235, 219, 178),
+            notif_info: Color::Rgb(69, 133, 136),
+            notif_warning: Color::Rgb(254, 128, 25),
+            notif_error: Color::Rgb(204, 36, 29),
         }
     }
 
     pub const fn kanagawa() -> Self {
         Self {
-            // Base
-            bg: Color::Rgb(46, 50, 87),            // #2e3257
-            bg_highlight: Color::Rgb(66, 70, 107), // derived
-            fg: Color::Rgb(255, 254, 247),         // #fffef7
-            fg_dim: Color::Rgb(186, 187, 189),     // #babbbd
-
-            // UI elements
-            border: Color::Rgb(98, 125, 154),          // #627d9a
-            border_focused: Color::Rgb(223, 197, 164), // #dfc5a4
-            selection_bg: Color::Rgb(66, 70, 107),     // derived
-            current_bg: Color::Rgb(98, 125, 154),      // #627d9a
-
-            // Accents
-            accent: Color::Rgb(223, 197, 164),    // #dfc5a4
-            accent_alt: Color::Rgb(98, 125, 154), // #627d9a
-
-            // Semantic
-            playing: Color::Rgb(223, 197, 164), // #dfc5a4
-            paused: Color::Rgb(186, 187, 189),  // #babbbd
-            info: Color::Rgb(98, 125, 154),     // #627d9a
-            title: Color::Rgb(255, 254, 247),   // #fffef7
+            bg: Color::Rgb(46, 50, 87),
+            bg_highlight: Color::Rgb(66, 70, 107),
+            fg: Color::Rgb(255, 254, 247),
+            fg_dim: Color::Rgb(186, 187, 189),
+            border: Color::Rgb(98, 125, 154),
+            border_focused: Color::Rgb(223, 197, 164),
+            selection_bg: Color::Rgb(66, 70, 107),
+            current_bg: Color::Rgb(98, 125, 154),
+            accent: Color::Rgb(223, 197, 164),
+            accent_alt: Color::Rgb(98, 125, 154),
+            playing: Color::Rgb(223, 197, 164),
+            paused: Color::Rgb(186, 187, 189),
+            info: Color::Rgb(98, 125, 154),
+            title: Color::Rgb(255, 254, 247),
+            notif_debug: Color::Rgb(255, 254, 247),
+            notif_info: Color::Rgb(126, 156, 216),
+            notif_warning: Color::Rgb(255, 160, 102),
+            notif_error: Color::Rgb(195, 64, 67),
         }
     }
 
     pub const fn hackerman() -> Self {
         Self {
-            // Base
-            bg: Color::Rgb(0, 0, 0),              // #000000
-            bg_highlight: Color::Rgb(10, 25, 10), // #0a190a
-            fg: Color::Rgb(0, 255, 65),           // #00ff41
-            fg_dim: Color::Rgb(0, 128, 32),       // #008020
+            bg: Color::Rgb(0, 0, 0),
+            bg_highlight: Color::Rgb(10, 25, 10),
+            fg: Color::Rgb(0, 255, 65),
+            fg_dim: Color::Rgb(0, 128, 32),
+            border: Color::Rgb(0, 180, 45),
+            border_focused: Color::Rgb(57, 255, 20),
+            selection_bg: Color::Rgb(0, 50, 12),
+            current_bg: Color::Rgb(0, 200, 50),
+            accent: Color::Rgb(57, 255, 20),
+            accent_alt: Color::Rgb(0, 255, 159),
+            playing: Color::Rgb(0, 255, 65),
+            paused: Color::Rgb(180, 255, 0),
+            info: Color::Rgb(0, 255, 159),
+            title: Color::Rgb(57, 255, 20),
+            notif_debug: Color::Rgb(200, 200, 200),
+            notif_info: Color::Rgb(0, 150, 255),
+            notif_warning: Color::Rgb(255, 165, 0),
+            notif_error: Color::Rgb(255, 50, 50),
+        }
+    }
 
-            // UI elements
-            border: Color::Rgb(0, 180, 45),          // #00b42d
-            border_focused: Color::Rgb(57, 255, 20), // #39ff14
-            selection_bg: Color::Rgb(0, 50, 12),     // #00320c
-            current_bg: Color::Rgb(0, 200, 50),      // #00c832
-
-            // Accents
-            accent: Color::Rgb(57, 255, 20),     // #39ff14
-            accent_alt: Color::Rgb(0, 255, 159), // #00ff9f
-
-            // Semantic
-            playing: Color::Rgb(0, 255, 65), // #00ff41
-            paused: Color::Rgb(180, 255, 0), // #b4ff00
-            info: Color::Rgb(0, 255, 159),   // #00ff9f
-            title: Color::Rgb(57, 255, 20),  // #39ff14
+    pub fn notification_color(&self, level: NotificationLevel) -> Color {
+        match level {
+            NotificationLevel::Debug => self.notif_debug,
+            NotificationLevel::Info => self.notif_info,
+            NotificationLevel::Warning => self.notif_warning,
+            NotificationLevel::Error => self.notif_error,
         }
     }
 

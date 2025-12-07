@@ -10,6 +10,7 @@ use crate::api::thread::ApiCommand;
 use crate::app::{decrement, incrememnt};
 use crate::events::types::TrackInfo;
 use crate::player::commands::{PlayerCommand, PlayerState};
+use crate::ui::notifications::NotificationManager;
 
 #[derive(Default, Clone)]
 pub struct LayoutRegions {
@@ -56,6 +57,9 @@ pub struct App {
     // Communication
     pub player_tx: mpsc::Sender<PlayerCommand>,
     pub api_tx: mpsc::Sender<ApiCommand>,
+
+    // Notifications
+    pub notifications: NotificationManager,
 
     // Control
     pub should_quit: bool,
@@ -105,6 +109,8 @@ impl App {
 
             player_tx,
             api_tx,
+
+            notifications: NotificationManager::new(),
 
             should_quit: false,
             auto_resume_pending: true,
@@ -229,7 +235,7 @@ impl App {
         self.loading_items = false;
         self.loading_chapters = false;
         self.error_message = Some(error.clone());
-        panic!("API error: {}", error);
+        self.notifications.error(format!("API Error: {}", error));
     }
 
     pub fn on_player_state_changed(&mut self, state: PlayerState) {
@@ -331,6 +337,7 @@ impl App {
 
     pub fn on_player_error(&mut self, error: String) {
         self.error_message = Some(format!("Player error: {}", error));
+        self.notifications.error(format!("Player: {}", error));
         self.player_state = PlayerState::Stopped;
     }
 
