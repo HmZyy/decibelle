@@ -2,13 +2,22 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 
 use crate::api::models::{AudioTrack, Chapter, Library, LibraryItem};
 use crate::api::thread::ApiCommand;
 use crate::app::{decrement, incrememnt};
 use crate::events::types::TrackInfo;
 use crate::player::commands::{PlayerCommand, PlayerState};
+
+#[derive(Default, Clone)]
+pub struct LayoutRegions {
+    pub library_list: Option<Rect>,
+    pub chapters: Option<Rect>,
+    pub controls: Option<Rect>,
+    pub progress_bar: Option<Rect>,
+}
 
 pub struct App {
     // Data
@@ -48,6 +57,7 @@ pub struct App {
     pub should_quit: bool,
     pub auto_resume_pending: bool,
     pub error_message: Option<String>,
+    pub layout_regions: LayoutRegions,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -92,6 +102,7 @@ impl App {
             should_quit: false,
             auto_resume_pending: true,
             error_message: None,
+            layout_regions: LayoutRegions::default(),
         }
     }
 
@@ -427,6 +438,121 @@ impl App {
             KeyCode::Char(' ') => {
                 self.toggle_playback();
             }
+            _ => {}
+        }
+    }
+
+    fn point_in_rect(&self, x: u16, y: u16, rect: &Rect) -> bool {
+        x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+    }
+
+    pub fn handle_mouse(&mut self, event: MouseEvent) {
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let x = event.column;
+                let y = event.row;
+
+                if let Some(ref region) = self.layout_regions.library_list {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::Libraries;
+                        if y > region.y && y < region.y + region.height - 1 {
+                            let clicked_index = (y - region.y - 1) as usize;
+                            if clicked_index < self.library_items.len() {
+                                self.selected_library_item_index = clicked_index;
+                            }
+                        }
+                        return;
+                    }
+                }
+
+                if let Some(ref region) = self.layout_regions.chapters {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::Chapters;
+                        if y > region.y && y < region.y + region.height - 1 {
+                            let clicked_index = (y - region.y - 1) as usize;
+                            if clicked_index < self.chapters.len() {
+                                self.selected_chapter_index = clicked_index;
+                            }
+                        }
+                        return;
+                    }
+                }
+
+                if let Some(ref region) = self.layout_regions.controls {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::Controls;
+                        return;
+                    }
+                }
+            }
+
+            MouseEventKind::Down(MouseButton::Right) => {
+                let x = event.column;
+                let y = event.row;
+
+                if let Some(ref region) = self.layout_regions.library_list {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::Libraries;
+                        if y > region.y && y < region.y + region.height - 1 {
+                            let clicked_index = (y - region.y - 1) as usize;
+                            if clicked_index < self.library_items.len() {
+                                self.selected_library_item_index = clicked_index;
+                                self.current_library_item = self
+                                    .library_items
+                                    .get(self.selected_library_item_index)
+                                    .cloned();
+                                self.load_chapters(
+                                    &self.library_items.clone()[self.selected_library_item_index]
+                                        .id,
+                                );
+                                self.focus = Focus::Chapters;
+                            }
+                        }
+                        return;
+                    }
+                }
+
+                if let Some(ref region) = self.layout_regions.chapters {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::Chapters;
+                        if y > region.y && y < region.y + region.height - 1 {
+                            let clicked_index = (y - region.y - 1) as usize;
+                            if clicked_index < self.chapters.len() {
+                                self.selected_chapter_index = clicked_index;
+                                if let (Some(selected_chapter), Some(selected_item)) = (
+                                    self.chapters.get(self.selected_chapter_index),
+                                    self.library_items.get(self.selected_library_item_index),
+                                ) {
+                                    self.current_chapter = Some(selected_chapter.clone());
+                                    self.current_item_id = Some(selected_item.id.clone());
+                                    let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
+                                        selected_item.id.clone(),
+                                        selected_chapter.start,
+                                    ));
+                                }
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+
+            MouseEventKind::Down(MouseButton::Middle) => {
+                self.toggle_playback();
+            }
+
+            MouseEventKind::ScrollUp => match self.focus {
+                Focus::Libraries => self.previous_libaray_item(),
+                Focus::Chapters => self.previous_chapter(),
+                Focus::Controls => self.seek_forward(5.0),
+            },
+
+            MouseEventKind::ScrollDown => match self.focus {
+                Focus::Libraries => self.next_library_item(),
+                Focus::Chapters => self.next_chapter(),
+                Focus::Controls => self.seek_backward(5.0),
+            },
+
             _ => {}
         }
     }

@@ -1,11 +1,12 @@
 use crate::player::commands::PlayerState;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, MouseEvent};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Debug, Clone)]
 pub enum AppEvent {
     // From input thread
     Input(KeyEvent),
+    Mouse(MouseEvent),
     Resize(u16, u16),
 
     // From player thread

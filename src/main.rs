@@ -68,11 +68,12 @@ fn main() -> io::Result<()> {
             image_cache.clear();
         }
 
-        terminal.draw(|f| ui::render::render(f, &app, &mut image_cache))?;
+        terminal.draw(|f| ui::render::render(f, &mut app, &mut image_cache))?;
 
         match event_rx.recv_timeout(Duration::from_millis(50)) {
             Ok(event) => match event {
                 AppEvent::Input(key_event) => app.handle_input(key_event),
+                AppEvent::Mouse(mouse_event) => app.handle_mouse(mouse_event),
                 AppEvent::Resize(_width, _height) => {}
                 AppEvent::PlayerStateChanged(state) => app.on_player_state_changed(state),
                 AppEvent::PositionUpdate(pos) => app.on_position_update(pos),

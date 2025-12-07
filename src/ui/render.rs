@@ -24,7 +24,7 @@ fn block_with_title(title: &'_ str) -> Block<'_> {
         .title(title)
 }
 
-pub fn render(f: &mut Frame, app: &App, image_cache: &mut ImageCache) {
+pub fn render(f: &mut Frame, app: &mut App, image_cache: &mut ImageCache) {
     let area = f.area();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -40,6 +40,8 @@ pub fn render(f: &mut Frame, app: &App, image_cache: &mut ImageCache) {
     draw_main_content(f, chunks[1], app, image_cache);
     draw_playback_controls(f, chunks[2], app);
     draw_footer(f, chunks[3], app);
+
+    app.layout_regions.controls = Some(chunks[2]);
 }
 
 fn draw_header(f: &mut Frame, area: Rect) {
@@ -51,7 +53,7 @@ fn draw_header(f: &mut Frame, area: Rect) {
     f.render_widget(header, area);
 }
 
-fn draw_main_content(f: &mut Frame, area: Rect, app: &App, image_cache: &mut ImageCache) {
+fn draw_main_content(f: &mut Frame, area: Rect, app: &mut App, image_cache: &mut ImageCache) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -61,6 +63,10 @@ fn draw_main_content(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Ima
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
         .split(main_chunks[0]);
+
+    // Store regions for mouse hit detection
+    app.layout_regions.library_list = Some(top_chunks[0]);
+    app.layout_regions.chapters = Some(top_chunks[1]);
 
     draw_library_list(f, top_chunks[0], app);
     draw_chapters(f, top_chunks[1], app);
@@ -483,7 +489,7 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
 
     let (play_icon, play_label) = match app.player_state {
         PlayerState::Playing => ("󰏤", "Pause"),
-        PlayerState::Paused => ("", "Resume"),
+        PlayerState::Paused => ("", "Resume"),
         _ => ("", "Play"),
     };
 
