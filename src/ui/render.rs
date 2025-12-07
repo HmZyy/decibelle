@@ -25,7 +25,12 @@ fn block_with_title(title: &'_ str) -> Block<'_> {
 }
 
 pub fn render(f: &mut Frame, app: &mut App, image_cache: &mut ImageCache) {
+    let theme = get_theme();
     let area = f.area();
+
+    let background = Block::default().style(Style::default().bg(theme.bg));
+    f.render_widget(background, area);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -361,10 +366,14 @@ fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &m
     let block = Block::default()
         .borders(Borders::ALL)
         .border_set(ROUNDED_BORDER)
-        .border_style(Style::new().fg(theme.fg_dim));
+        .border_style(Style::new().fg(theme.fg_dim))
+        .style(Style::default().bg(theme.bg));
 
     let image_area = block.inner(area);
     f.render_widget(block, area);
+
+    let bg_fill = Block::default().style(Style::default().bg(theme.bg));
+    f.render_widget(bg_fill, image_area);
 
     if image_cache.current_item_id.as_deref() == Some(&item.id) {
         if let Some(ref mut protocol) = image_cache.current_image {
@@ -376,7 +385,7 @@ fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &m
 
             let centered_area = Rect {
                 x: image_area.x + (image_area.width.saturating_sub(thumb_width)) / 2,
-                y: image_area.y + (image_area.height.saturating_sub(thumb_height)) / 2 + 1,
+                y: image_area.y + (image_area.height.saturating_sub(thumb_height)) / 2,
                 width: thumb_width,
                 height: thumb_height,
             };
@@ -386,7 +395,6 @@ fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &m
         }
     }
 
-    // Center the loading text vertically and horizontally
     let text_area = Rect {
         x: image_area.x,
         y: image_area.y + image_area.height / 2,
