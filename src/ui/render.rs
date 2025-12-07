@@ -132,7 +132,7 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
         (Some(item), Some(chapter)) => {
             let panels = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
                 .split(inner);
             draw_info_panel(
                 f,
@@ -146,7 +146,7 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
         (Some(item), None) => {
             let panels = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
                 .split(inner);
             draw_info_panel(f, panels[0], item, None, 0.0);
             draw_thumbnail(f, panels[1], item, image_cache);
@@ -351,36 +351,36 @@ fn draw_info_panel(
 
 fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &mut ImageCache) {
     let theme = get_theme();
-    let inner = Rect {
-        x: area.x + 1,
-        y: area.y + 1,
-        width: area.width.saturating_sub(2),
-        height: area.height.saturating_sub(2),
-    };
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_set(ROUNDED_BORDER)
         .border_style(Style::new().fg(theme.fg_dim));
 
-    f.render_widget(block.clone(), inner);
-    let image_area = block.inner(inner);
+    let image_area = block.inner(area);
+    f.render_widget(block, area);
 
     if image_cache.current_item_id.as_deref() == Some(&item.id) {
         if let Some(ref mut protocol) = image_cache.current_image {
-            let thumb_width = image_area.width.min(40);
-            let thumb_height = image_area.height.min(20);
+            let max_height = image_area.height;
+            let max_width = image_area.width;
+
+            let thumb_height = max_height.min(max_width / 2).max(1);
+            let thumb_width = thumb_height * 2;
+
             let centered_area = Rect {
                 x: image_area.x + (image_area.width.saturating_sub(thumb_width)) / 2,
-                y: image_area.y + (image_area.height.saturating_sub(thumb_height)) / 2,
+                y: image_area.y + (image_area.height.saturating_sub(thumb_height)) / 2 + 1,
                 width: thumb_width,
                 height: thumb_height,
             };
+
             f.render_stateful_widget(StatefulImage::new(None), centered_area, protocol);
             return;
         }
     }
 
+    // Center the loading text vertically and horizontally
     let text_area = Rect {
         x: image_area.x,
         y: image_area.y + image_area.height / 2,
