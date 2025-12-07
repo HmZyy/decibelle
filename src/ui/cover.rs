@@ -37,7 +37,6 @@ impl CoverFetcher {
 
         thread::spawn(move || {
             let cover_url = format!("{}/api/items/{}/cover", config.server_url, item_id);
-
             match client
                 .get(&cover_url)
                 .header("Authorization", format!("Bearer {}", config.api_key))
@@ -51,7 +50,6 @@ impl CoverFetcher {
                         });
                         return;
                     }
-
                     match response.bytes() {
                         Ok(data) => {
                             let _ = tx.send(CoverMessage::Loaded {
@@ -86,14 +84,13 @@ impl CoverFetcher {
 /// Caches loaded images for rendering
 pub struct ImageCache {
     pub picker: Picker,
-    pub current_image: Option<Box<dyn StatefulProtocol>>,
+    pub current_image: Option<StatefulProtocol>,
     pub current_item_id: Option<String>,
 }
 
 impl ImageCache {
     pub fn new() -> Self {
-        let mut picker = Picker::from_termios().unwrap_or_else(|_| Picker::new((8, 16)));
-        picker.guess_protocol();
+        let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::from_fontsize((8, 16)));
 
         Self {
             picker,

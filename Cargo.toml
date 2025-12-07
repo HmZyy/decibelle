@@ -15,5 +15,5 @@ tokio = { version = "1", features = ["full"] }
 symphonia = { version = "0.5", features = ["isomp4", "aac"] }
 cpal = "0.15"
 dirs = "5.0"
-ratatui-image = "1"
+ratatui-image = "8.0.2"
 image = "0.25"

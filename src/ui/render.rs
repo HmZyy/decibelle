@@ -457,7 +457,7 @@ fn draw_thumbnail(f: &mut Frame, area: Rect, item: &LibraryItem, image_cache: &m
                 height: thumb_height,
             };
 
-            f.render_stateful_widget(StatefulImage::new(None), centered_area, protocol);
+            f.render_stateful_widget(StatefulImage::default(), centered_area, protocol);
             return;
         }
     }
