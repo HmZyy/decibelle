@@ -4,7 +4,9 @@ use ratatui::{
     style::Style,
     symbols::border,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
 };
 use ratatui_image::StatefulImage;
 
@@ -133,11 +135,15 @@ fn draw_library_list(f: &mut Frame, area: Rect, app: &App) {
     }
 }
 
-fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut ImageCache) {
+fn draw_now_playing(f: &mut Frame, area: Rect, app: &mut App, image_cache: &mut ImageCache) {
     let theme = get_theme();
-    let block = block_with_title(" ● Now Playing ").border_style(theme.border_style(false));
+    let is_focused = app.focus == Focus::InfoPanel;
+    let block = block_with_title(" ● Now Playing ").border_style(theme.border_style(is_focused));
     let inner = block.inner(area);
     f.render_widget(block, area);
+
+    // Store region for mouse hit detection
+    app.layout_regions.info_panel = Some(area);
 
     match (&app.current_library_item, &app.current_chapter) {
         (Some(item), Some(chapter)) => {
@@ -151,6 +157,8 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
                 item,
                 Some(chapter),
                 app.current_position.as_secs_f64(),
+                &mut app.info_scroll,
+                is_focused,
             );
             draw_thumbnail(f, panels[1], item, image_cache);
         }
@@ -159,7 +167,15 @@ fn draw_now_playing(f: &mut Frame, area: Rect, app: &App, image_cache: &mut Imag
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
                 .split(inner);
-            draw_info_panel(f, panels[0], item, None, 0.0);
+            draw_info_panel(
+                f,
+                panels[0],
+                item,
+                None,
+                0.0,
+                &mut app.info_scroll,
+                is_focused,
+            );
             draw_thumbnail(f, panels[1], item, image_cache);
         }
         _ => {
@@ -185,6 +201,8 @@ fn draw_info_panel(
     item: &LibraryItem,
     chapter: Option<&Chapter>,
     current_pos: f64,
+    scroll: &mut u16,
+    is_focused: bool,
 ) {
     let theme = get_theme();
     let media = match &item.media {
@@ -202,165 +220,119 @@ fn draw_info_panel(
     let label = theme.label_style();
     let value = theme.value_style();
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1), // 0: Title
-            Constraint::Length(1), // 1: Subtitle
-            Constraint::Length(1), // 2: Author
-            Constraint::Length(1), // 3: Narrator
-            Constraint::Length(1), // 4: Series
-            Constraint::Length(1), // 5: Publisher
-            Constraint::Length(1), // 6: Year
-            Constraint::Length(1), // 7: (spacer)
-            Constraint::Length(1), // 8: Duration
-            Constraint::Length(1), // 9: Size
-            Constraint::Length(1), // 10: Chapters/Tracks
-            Constraint::Length(1), // 11: (spacer)
-            Constraint::Length(1), // 12: Current Chapter
-            Constraint::Length(1), // 13: Time
-            Constraint::Length(1), // 14: (spacer)
-            Constraint::Min(0),    // 15: Description
-        ])
-        .margin(1)
-        .split(area);
+    // Build all content lines
+    let mut lines: Vec<Line> = Vec::new();
 
     // Title
     let title = metadata.title.as_deref().unwrap_or("N/A");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Title:     ", label),
-            Span::styled(title, theme.title_style()),
-        ])),
-        chunks[0],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Title:     ", label),
+        Span::styled(title, theme.title_style()),
+    ]));
 
     // Subtitle
     let subtitle = metadata.subtitle.as_deref().unwrap_or("-");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Subtitle:  ", label),
-            Span::styled(subtitle, Style::new().fg(theme.accent)),
-        ])),
-        chunks[1],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Subtitle:  ", label),
+        Span::styled(subtitle, Style::new().fg(theme.accent)),
+    ]));
 
     // Author
     let author = metadata.author_name.as_deref().unwrap_or("Unknown");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Author:    ", label),
-            Span::styled(author, value),
-        ])),
-        chunks[2],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Author:    ", label),
+        Span::styled(author, value),
+    ]));
 
     // Narrator
     let narrator = metadata.narrator_name.as_deref().unwrap_or("-");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Narrator:  ", label),
-            Span::styled(narrator, value),
-        ])),
-        chunks[3],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Narrator:  ", label),
+        Span::styled(narrator, value),
+    ]));
 
     // Series
     let series = metadata.series_name.as_deref().unwrap_or("-");
     let series_display = if series.is_empty() { "-" } else { series };
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Series:    ", label),
-            Span::styled(series_display, Style::new().fg(theme.info)),
-        ])),
-        chunks[4],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Series:    ", label),
+        Span::styled(series_display, Style::new().fg(theme.info)),
+    ]));
 
     // Publisher
     let publisher = metadata.publisher.as_deref().unwrap_or("-");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Publisher: ", label),
-            Span::styled(publisher, value),
-        ])),
-        chunks[5],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Publisher: ", label),
+        Span::styled(publisher, value),
+    ]));
 
     // Year
     let year = metadata.published_year.as_deref().unwrap_or("-");
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Year:      ", label),
-            Span::styled(year, value),
-        ])),
-        chunks[6],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Year:      ", label),
+        Span::styled(year, value),
+    ]));
+
+    // Spacer
+    lines.push(Line::from(""));
 
     // Duration
     let duration = media.duration.unwrap_or(0.0);
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Duration:  ", label),
-            Span::styled(format_duration_long(duration), value),
-        ])),
-        chunks[8],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Duration:  ", label),
+        Span::styled(format_duration_long(duration), value),
+    ]));
 
     // Size
     let size = media.size.unwrap_or(0);
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Size:      ", label),
-            Span::styled(format_size(size), value),
-        ])),
-        chunks[9],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Size:      ", label),
+        Span::styled(format_size(size), value),
+    ]));
 
     // Chapters / Tracks
     let num_chapters = media.num_chapters.unwrap_or(0);
     let num_tracks = media.num_tracks.unwrap_or(0);
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("Chapters:  ", label),
-            Span::styled(format!("{}", num_chapters), value),
-            Span::styled("  Tracks: ", label),
-            Span::styled(format!("{}", num_tracks), value),
-        ])),
-        chunks[10],
-    );
+    lines.push(Line::from(vec![
+        Span::styled("Chapters:  ", label),
+        Span::styled(format!("{}", num_chapters), value),
+        Span::styled("  Tracks: ", label),
+        Span::styled(format!("{}", num_tracks), value),
+    ]));
 
-    // Current Chapter
-    if let Some(ch) = chapter {
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("Chapter:   ", label),
-                Span::styled(&ch.title, Style::new().fg(theme.accent_alt)),
-            ])),
-            chunks[12],
-        );
+    // Spacer
+    lines.push(Line::from(""));
 
-        let chapter_start = ch.start;
-        let chapter_duration = ch.end - ch.start;
-        let elapsed = (current_pos - chapter_start).max(0.0);
+    // // Current Chapter
+    // if let Some(ch) = chapter {
+    //     lines.push(Line::from(vec![
+    //         Span::styled("Chapter:   ", label),
+    //         Span::styled(&ch.title, Style::new().fg(theme.accent_alt)),
+    //     ]));
+    //
+    //     let chapter_start = ch.start;
+    //     let chapter_duration = ch.end - ch.start;
+    //     let elapsed = (current_pos - chapter_start).max(0.0);
+    //
+    //     lines.push(Line::from(vec![
+    //         Span::styled("Time:      ", label),
+    //         Span::styled(
+    //             format!(
+    //                 "{} / {}",
+    //                 format_duration(elapsed),
+    //                 format_duration(chapter_duration)
+    //             ),
+    //             value,
+    //         ),
+    //     ]));
+    //
+    //     // Spacer
+    //     lines.push(Line::from(""));
+    // }
 
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("Time:      ", label),
-                Span::styled(
-                    format!(
-                        "{} / {}",
-                        format_duration(elapsed),
-                        format_duration(chapter_duration)
-                    ),
-                    value,
-                ),
-            ])),
-            chunks[13],
-        );
-    }
-
+    // Description
     if let Some(description) = &metadata.description {
-        if !description.is_empty() && chunks[15].height > 0 {
+        if !description.is_empty() {
             // Strip HTML tags for plain text display
             let plain_desc = description
                 .replace("<br>", " ")
@@ -385,17 +357,72 @@ fn draw_info_panel(
                 })
                 .0;
 
-            let desc_block = Block::default()
-                .borders(Borders::TOP)
-                .border_style(Style::new().fg(theme.fg_dim))
-                .title(Span::styled(" Description ", label));
+            let desc_width = area.width.saturating_sub(4) as usize;
+            let words: Vec<&str> = re_cleaned.trim().split_whitespace().collect();
+            let mut current_line = String::new();
 
-            let desc_para = Paragraph::new(re_cleaned.trim())
-                .style(theme.value_style())
-                .wrap(ratatui::widgets::Wrap { trim: true })
-                .block(desc_block);
+            for word in words {
+                if current_line.is_empty() {
+                    current_line = word.to_string();
+                } else if current_line.len() + 1 + word.len() <= desc_width {
+                    current_line.push(' ');
+                    current_line.push_str(word);
+                } else {
+                    lines.push(Line::from(Span::styled(current_line.clone(), value)));
+                    current_line = word.to_string();
+                }
+            }
+            if !current_line.is_empty() {
+                lines.push(Line::from(Span::styled(current_line, value)));
+            }
+        }
+    }
 
-            f.render_widget(desc_para, chunks[15]);
+    let total_lines = lines.len() as u16;
+    let visible_height = area.height.saturating_sub(2);
+    let max_scroll = total_lines.saturating_sub(visible_height);
+
+    if *scroll > max_scroll {
+        *scroll = max_scroll;
+    }
+
+    let inner_area = Rect {
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(3), // room for scrollbar
+        height: visible_height,
+    };
+
+    let para = Paragraph::new(lines).scroll((*scroll, 0));
+    f.render_widget(para, inner_area);
+
+    if total_lines > visible_height {
+        let scrollbar_area = Rect {
+            x: area.x + area.width - 2,
+            y: area.y + 1,
+            width: 1,
+            height: visible_height,
+        };
+
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+
+        let mut scrollbar_state =
+            ScrollbarState::new(max_scroll as usize).position(*scroll as usize);
+
+        f.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+
+        if is_focused && max_scroll > 0 {
+            let indicator = format!(" {}/{} ", *scroll + 1, max_scroll + 1);
+            let indicator_area = Rect {
+                x: area.x + area.width.saturating_sub(indicator.len() as u16 + 2),
+                y: area.y,
+                width: indicator.len() as u16,
+                height: 1,
+            };
+            f.render_widget(
+                Paragraph::new(indicator).style(Style::new().fg(theme.accent)),
+                indicator_area,
+            );
         }
     }
 }
@@ -675,6 +702,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
         Focus::Controls => {
             "←→/hl: ±5s | ←→(global): ±30s | Space: Play/Pause | Tab: Focus | q: Quit"
         }
+        Focus::InfoPanel => "↑↓/jk: Scroll | Tab: Focus | Space: Pause | q: Quit",
     };
 
     f.render_widget(

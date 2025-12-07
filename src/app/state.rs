@@ -17,6 +17,7 @@ pub struct LayoutRegions {
     pub chapters: Option<Rect>,
     pub controls: Option<Rect>,
     pub progress_bar: Option<Rect>,
+    pub info_panel: Option<Rect>,
 }
 
 pub struct App {
@@ -39,6 +40,9 @@ pub struct App {
 
     // Selection state
     pub focus: Focus,
+
+    // Info panel scroll
+    pub info_scroll: u16,
 
     // Playback state
     pub player_state: PlayerState,
@@ -65,6 +69,7 @@ pub enum Focus {
     Libraries,
     Chapters,
     Controls,
+    InfoPanel,
 }
 
 impl App {
@@ -87,6 +92,8 @@ impl App {
             loading_chapters: false,
 
             focus: Focus::Libraries,
+
+            info_scroll: 0,
 
             player_state: PlayerState::Stopped,
             current_position: Duration::ZERO,
@@ -341,6 +348,16 @@ impl App {
         }
     }
 
+    pub fn scroll_info_up(&mut self) {
+        self.info_scroll = self.info_scroll.saturating_sub(1);
+    }
+
+    pub fn scroll_info_down(&mut self, max_scroll: u16) {
+        if self.info_scroll < max_scroll {
+            self.info_scroll = self.info_scroll.saturating_add(1);
+        }
+    }
+
     pub fn handle_input(&mut self, key: KeyEvent) -> () {
         match key.code {
             KeyCode::Char('q') => {
@@ -384,6 +401,7 @@ impl App {
                 } else if self.focus == Focus::Chapters {
                 } else if self.focus == Focus::Controls {
                     self.seek_forward(5.0);
+                } else if self.focus == Focus::InfoPanel {
                 }
             }
             KeyCode::Char('h') | KeyCode::Left => {
@@ -392,6 +410,7 @@ impl App {
                     self.cycle_focus(true);
                 } else if self.focus == Focus::Controls {
                     self.seek_backward(5.0);
+                } else if self.focus == Focus::InfoPanel {
                 }
             }
             KeyCode::Char('j') | KeyCode::Down => {
@@ -399,6 +418,8 @@ impl App {
                     self.next_library_item();
                 } else if self.focus == Focus::Chapters {
                     self.next_chapter();
+                } else if self.focus == Focus::InfoPanel {
+                    self.scroll_info_down(100);
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
@@ -406,6 +427,8 @@ impl App {
                     self.previous_libaray_item();
                 } else if self.focus == Focus::Chapters {
                     self.previous_chapter();
+                } else if self.focus == Focus::InfoPanel {
+                    self.scroll_info_up();
                 }
             }
             KeyCode::Enter => {
@@ -418,8 +441,6 @@ impl App {
                     self.load_chapters(
                         &self.library_items.clone()[self.selected_library_item_index].id,
                     );
-
-                    self.cycle_focus(false);
                 } else if self.focus == Focus::Chapters {
                     if let (Some(selected_chapter), Some(selected_item)) = (
                         self.chapters.get(self.selected_chapter_index),
@@ -484,6 +505,13 @@ impl App {
                         return;
                     }
                 }
+
+                if let Some(ref region) = self.layout_regions.info_panel {
+                    if self.point_in_rect(x, y, region) {
+                        self.focus = Focus::InfoPanel;
+                        return;
+                    }
+                }
             }
 
             MouseEventKind::Down(MouseButton::Right) => {
@@ -545,12 +573,14 @@ impl App {
                 Focus::Libraries => self.previous_libaray_item(),
                 Focus::Chapters => self.previous_chapter(),
                 Focus::Controls => self.seek_forward(5.0),
+                Focus::InfoPanel => self.scroll_info_up(),
             },
 
             MouseEventKind::ScrollDown => match self.focus {
                 Focus::Libraries => self.next_library_item(),
                 Focus::Chapters => self.next_chapter(),
                 Focus::Controls => self.seek_backward(5.0),
+                Focus::InfoPanel => self.scroll_info_down(100),
             },
 
             _ => {}
@@ -560,12 +590,14 @@ impl App {
     pub fn cycle_focus(&mut self, reverse: bool) {
         self.focus = match (self.focus, reverse) {
             (Focus::Libraries, false) => Focus::Chapters,
-            (Focus::Chapters, false) => Focus::Controls,
+            (Focus::Chapters, false) => Focus::InfoPanel,
+            (Focus::InfoPanel, false) => Focus::Controls,
             (Focus::Controls, false) => Focus::Libraries,
 
             (Focus::Libraries, true) => Focus::Controls,
             (Focus::Chapters, true) => Focus::Libraries,
-            (Focus::Controls, true) => Focus::Chapters,
+            (Focus::InfoPanel, true) => Focus::Chapters,
+            (Focus::Controls, true) => Focus::InfoPanel,
         };
     }
 
