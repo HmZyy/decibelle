@@ -1,9 +1,7 @@
+use crate::config::{Config, ImageProtocol};
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
-
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
-
-use crate::config::Config;
 
 pub enum CoverMessage {
     Loaded { item_id: String, data: Vec<u8> },
@@ -89,8 +87,33 @@ pub struct ImageCache {
 }
 
 impl ImageCache {
-    pub fn new() -> Self {
-        let picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::from_fontsize((8, 16)));
+    pub fn new(protocol: ImageProtocol) -> Self {
+        let picker = match protocol {
+            ImageProtocol::Auto => {
+                // Query terminal capabilities
+                Picker::from_query_stdio().unwrap_or_else(|_| Picker::from_fontsize((8, 16)))
+            }
+            ImageProtocol::Sixel => {
+                let mut picker = Picker::from_fontsize((8, 16));
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Sixel);
+                picker
+            }
+            ImageProtocol::Kitty => {
+                let mut picker = Picker::from_fontsize((8, 16));
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                picker
+            }
+            ImageProtocol::ITerm2 => {
+                let mut picker = Picker::from_fontsize((8, 16));
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Iterm2);
+                picker
+            }
+            ImageProtocol::Halfblocks => {
+                let mut picker = Picker::from_fontsize((8, 16));
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Halfblocks);
+                picker
+            }
+        };
 
         Self {
             picker,
@@ -117,11 +140,5 @@ impl ImageCache {
     pub fn clear(&mut self) {
         self.current_image = None;
         self.current_item_id = None;
-    }
-}
-
-impl Default for ImageCache {
-    fn default() -> Self {
-        Self::new()
     }
 }

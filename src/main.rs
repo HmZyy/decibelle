@@ -39,7 +39,8 @@ fn main() -> io::Result<()> {
     let mut app = App::new(player_cmd_tx, api_cmd_tx);
     app.load_libraries();
 
-    let mut image_cache = ImageCache::new();
+    let mut image_cache = ImageCache::new(config.image_protocol);
+
     let cover_fetcher = CoverFetcher::new(config.clone());
     let mut last_item_id: Option<String> = None;
 

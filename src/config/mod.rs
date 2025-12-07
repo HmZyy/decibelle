@@ -1,9 +1,19 @@
+use crate::ui::theme::ThemeName;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::ui::theme::ThemeName;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageProtocol {
+    #[default]
+    Auto,
+    Sixel,
+    Kitty,
+    ITerm2,
+    Halfblocks,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -11,6 +21,8 @@ pub struct Config {
     pub api_key: String,
     #[serde(default)]
     pub theme: ThemeName,
+    #[serde(default)]
+    pub image_protocol: ImageProtocol,
 }
 
 impl Default for Config {
@@ -19,6 +31,7 @@ impl Default for Config {
             server_url: "http://localhost:13378".to_string(),
             api_key: "not set yet".to_string(),
             theme: ThemeName::default(),
+            image_protocol: ImageProtocol::default(),
         }
     }
 }
@@ -27,7 +40,6 @@ fn get_config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir()
         .context("Could not find config directory")?
         .join("decibelle");
-
     Ok(config_dir.join("config.yml"))
 }
 
@@ -49,7 +61,8 @@ pub fn load_or_create_config() -> Result<Config> {
         eprintln!("\nPlease edit the config file and set your API key and server URL:");
         eprintln!("  server_url: Your Audiobookshelf server URL");
         eprintln!("  api_key: Your Audiobookshelf API key");
-        eprintln!("  theme: tokyo_night or catppuccin_mocha");
+        eprintln!("  theme: tokyo_night, catppuccin_mocha, gruvbox, kanagawa, hackerman");
+        eprintln!("  image_protocol: auto, sixel, kitty, iterm2, halfblocks");
         anyhow::bail!("Config file not configured. Please set your API key and server URL.");
     }
 
