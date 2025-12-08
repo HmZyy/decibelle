@@ -29,7 +29,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             server_url: "http://localhost:13378".to_string(),
-            api_key: "not set yet".to_string(),
+            api_key: "".to_string(),
             theme: ThemeName::default(),
             image_protocol: ImageProtocol::default(),
         }
@@ -63,7 +63,7 @@ pub fn load_or_create_config() -> Result<Config> {
         eprintln!("  api_key: Your Audiobookshelf API key");
         eprintln!("  theme: tokyo_night, catppuccin_mocha, gruvbox, kanagawa, hackerman");
         eprintln!("  image_protocol: auto, sixel, kitty, iterm2, halfblocks");
-        anyhow::bail!("Config file not configured. Please set your API key and server URL.");
+        anyhow::bail!("\nConfig file not configured. Please set your API key and server URL.");
     }
 
     let config_content = fs::read_to_string(&config_path).context("Failed to read config file")?;
@@ -71,7 +71,7 @@ pub fn load_or_create_config() -> Result<Config> {
     let config: Config =
         serde_yaml::from_str(&config_content).context("Failed to parse config file")?;
 
-    if config.api_key == "not set yet" || config.api_key.is_empty() {
+    if config.api_key.is_empty() {
         anyhow::bail!("API key not set in config file: {}", config_path.display());
     }
 

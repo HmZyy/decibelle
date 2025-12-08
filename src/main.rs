@@ -1,4 +1,4 @@
-use std::{io, sync::mpsc, time::Duration};
+use std::{io, process::exit, sync::mpsc, time::Duration};
 
 use crate::{
     api::thread::ApiCommand,
@@ -21,7 +21,8 @@ fn main() -> io::Result<()> {
     let config = match config {
         Ok(config) => config,
         Err(err) => {
-            panic!("Failed to load config: {}", err);
+            println!("{:?} ", err);
+            exit(0);
         }
     };
 
