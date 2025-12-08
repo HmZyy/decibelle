@@ -86,6 +86,7 @@ impl AudioOutput {
         self.paused.store(paused, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     fn is_paused(&self) -> bool {
         self.paused.load(Ordering::Relaxed)
     }
@@ -179,7 +180,7 @@ pub fn spawn(
                             };
 
                             match c.format.seek(SeekMode::Accurate, seek_to) {
-                                Ok(seeked_to) => {
+                                Ok(_seeked_to) => {
                                     c.decoder.reset();
                                     c.total_frames_decoded = (position.as_secs_f64()
                                         * c.audio_output.spec.rate as f64)

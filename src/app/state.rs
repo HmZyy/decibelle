@@ -14,6 +14,7 @@ use crate::ui::loading::LoadingAnimation;
 use crate::ui::notifications::NotificationManager;
 
 #[derive(Default, Clone)]
+#[allow(dead_code)]
 pub struct LayoutRegions {
     pub library_list: Option<Rect>,
     pub chapters: Option<Rect>,
@@ -50,7 +51,7 @@ pub struct App {
     pub player_state: PlayerState,
     pub current_position: Duration,
     pub total_duration: Duration,
-    pub playback_speed: f32,
+    pub _playback_speed: f32,
 
     pub current_track_info: Option<TrackInfo>,
     pub current_tracks: Vec<AudioTrack>,
@@ -108,7 +109,7 @@ impl App {
             player_state: PlayerState::Stopped,
             current_position: Duration::ZERO,
             total_duration: Duration::ZERO,
-            playback_speed: 1.0,
+            _playback_speed: 1.0,
 
             current_track_info: None,
             current_tracks: Vec::new(),
@@ -701,6 +702,7 @@ impl App {
         }
     }
 
+    #[allow(dead_code)]
     pub fn stop_playback(&mut self) {
         let _ = self.player_tx.send(PlayerCommand::Stop);
     }

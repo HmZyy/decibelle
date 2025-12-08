@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum PlayerCommand {
     Play { path: PathBuf, position: Duration },
     Pause,

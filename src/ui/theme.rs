@@ -36,11 +36,13 @@ pub fn get_theme() -> &'static Theme {
 pub struct Theme {
     // Base colors
     pub bg: Color,
+    #[allow(dead_code)]
     pub bg_highlight: Color,
     pub fg: Color,
     pub fg_dim: Color,
 
     // UI elements
+    #[allow(dead_code)]
     pub border: Color,
     pub border_focused: Color,
     pub selection_bg: Color,
@@ -48,6 +50,7 @@ pub struct Theme {
 
     // Accents
     pub accent: Color,
+    #[allow(dead_code)]
     pub accent_alt: Color,
 
     // Semantic colors

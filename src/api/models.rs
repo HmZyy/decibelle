@@ -229,6 +229,7 @@ pub struct AudioMetaTags {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryItemsResponse {
     pub results: Vec<LibraryItem>,

@@ -240,6 +240,7 @@ impl ApiClient {
 
 // Error type
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ApiError {
     Network(reqwest::Error),
     NotFound,

@@ -22,7 +22,9 @@ use crate::{
 };
 
 const ROUNDED_BORDER: border::Set = border::ROUNDED;
+#[allow(dead_code)]
 const NOTIFICATION_WIDTH: u16 = 40;
+#[allow(dead_code)]
 const NOTIFICATION_HEIGHT: u16 = 3;
 
 fn block_with_title(title: &'_ str) -> Block<'_> {

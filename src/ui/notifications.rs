@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum NotificationLevel {
     Debug,
     Info,
@@ -64,6 +65,7 @@ impl NotificationManager {
             .push(Notification::new(level, text, duration));
     }
 
+    #[allow(dead_code)]
     pub fn debug(&mut self, text: impl Into<String>) {
         self.notify(NotificationLevel::Debug, text, Duration::from_secs(2));
     }
@@ -72,6 +74,7 @@ impl NotificationManager {
         self.notify(NotificationLevel::Info, text, Duration::from_secs(2));
     }
 
+    #[allow(dead_code)]
     pub fn warning(&mut self, text: impl Into<String>) {
         self.notify(NotificationLevel::Warning, text, Duration::from_secs(3));
     }
