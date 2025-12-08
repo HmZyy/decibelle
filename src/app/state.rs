@@ -64,6 +64,7 @@ pub struct App {
 
     pub loading_animation: LoadingAnimation,
     pub is_downloading: bool,
+    pub show_remaining_time: bool,
 
     // Control
     pub should_quit: bool,
@@ -119,6 +120,7 @@ impl App {
 
             loading_animation: LoadingAnimation::new(),
             is_downloading: false,
+            show_remaining_time: false,
 
             should_quit: false,
             auto_resume_pending: true,
@@ -469,6 +471,15 @@ impl App {
                 } else if self.focus == Focus::InfoPanel {
                     self.scroll_info_up();
                 }
+            }
+            KeyCode::Char('n') => {
+                self.show_remaining_time = !self.show_remaining_time;
+                let mode = if self.show_remaining_time {
+                    "remaining time"
+                } else {
+                    "total duration"
+                };
+                self.notifications.info(format!("Time display: {}", mode));
             }
             KeyCode::Enter => {
                 if self.focus == Focus::Libraries {

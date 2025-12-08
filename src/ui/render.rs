@@ -728,8 +728,15 @@ fn draw_progress_bar(
     ];
     f.render_widget(Paragraph::new(Line::from(slider_spans)), progress_chunks[3]);
 
+    let time_display = if app.show_remaining_time {
+        let remaining = (total - current).max(0.0);
+        format!("-{}", format_duration(remaining))
+    } else {
+        format_duration(total)
+    };
+
     f.render_widget(
-        Paragraph::new(format_duration(total))
+        Paragraph::new(time_display)
             .alignment(Alignment::Left)
             .style(theme.value_style()),
         progress_chunks[5],
@@ -740,15 +747,15 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     let theme = get_theme();
     let keybinds = match app.focus {
         Focus::Libraries => {
-            "↑↓/jk: Navigate | →/l/Enter: Select | L/H: Switch Library | Tab: Focus | Space: Pause | q: Quit"
+            "↑↓/jk: Navigate | →/l/Enter: Select | L/H: Switch Library | Tab: Focus | n: Toggle Time | Space: Pause | q: Quit"
         }
         Focus::Chapters => {
-            "↑↓/jk: Navigate | ←/h: Back | Enter: Play Chapter | Tab: Focus | Space: Pause | q: Quit"
+            "↑↓/jk: Navigate | ←/h: Back | Enter: Play Chapter | Tab: Focus | n: Toggle Time | Space: Pause | q: Quit"
         }
         Focus::Controls => {
-            "←→/hl: ±5s | ←→(global): ±30s | Space: Play/Pause | Tab: Focus | q: Quit"
+            "←→/hl: ±5s | ←→(global): ±30s | Space: Play/Pause | n: Toggle Time | Tab: Focus | q: Quit"
         }
-        Focus::InfoPanel => "↑↓/jk: Scroll | Tab: Focus | Space: Pause | q: Quit",
+        Focus::InfoPanel => "↑↓/jk: Scroll | Tab: Focus | n: Toggle Time | Space: Pause | q: Quit",
     };
 
     f.render_widget(
