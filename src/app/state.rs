@@ -10,6 +10,7 @@ use crate::api::thread::ApiCommand;
 use crate::app::{decrement, increment};
 use crate::events::types::TrackInfo;
 use crate::player::commands::{PlayerCommand, PlayerState};
+use crate::ui::loading::LoadingAnimation;
 use crate::ui::notifications::NotificationManager;
 
 #[derive(Default, Clone)]
@@ -60,6 +61,9 @@ pub struct App {
 
     // Notifications
     pub notifications: NotificationManager,
+
+    pub loading_animation: LoadingAnimation,
+    pub is_downloading: bool,
 
     // Control
     pub should_quit: bool,
@@ -112,6 +116,9 @@ impl App {
             api_tx,
 
             notifications: NotificationManager::new(),
+
+            loading_animation: LoadingAnimation::new(),
+            is_downloading: false,
 
             should_quit: false,
             auto_resume_pending: true,
@@ -208,6 +215,8 @@ impl App {
                     item.id.clone(),
                     resume_position,
                 ));
+
+                self.is_downloading = true;
             }
         }
     }
@@ -218,6 +227,7 @@ impl App {
         local_position: f64,
         track_info: TrackInfo,
     ) {
+        self.is_downloading = false;
         self.current_track_info = Some(track_info);
 
         let position = Duration::from_secs_f64(local_position);
@@ -475,6 +485,7 @@ impl App {
                         self.chapters.get(self.selected_chapter_index),
                         self.library_items.get(self.selected_library_item_index),
                     ) {
+                        self.is_downloading = true;
                         self.current_chapter = Some(selected_chapter.clone());
                         self.current_item_id = Some(selected_item.id.clone());
 
@@ -582,6 +593,8 @@ impl App {
                                 ) {
                                     self.current_chapter = Some(selected_chapter.clone());
                                     self.current_item_id = Some(selected_item.id.clone());
+
+                                    self.is_downloading = true;
                                     let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
                                         selected_item.id.clone(),
                                         selected_chapter.start,
@@ -714,6 +727,8 @@ impl App {
                     let _ = self
                         .api_tx
                         .send(ApiCommand::DownloadForPlayback(item.id.clone(), global_pos));
+
+                    self.is_downloading = true;
                 }
             }
         } else {

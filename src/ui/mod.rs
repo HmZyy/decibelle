@@ -1,4 +1,5 @@
 pub mod cover;
+pub mod loading;
 pub mod notifications;
 pub mod render;
 pub mod theme;

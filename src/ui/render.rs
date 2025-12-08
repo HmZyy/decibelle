@@ -21,6 +21,8 @@ use crate::{
     },
 };
 
+use crate::ui::loading::LoadingAnimation;
+
 const ROUNDED_BORDER: border::Set = border::ROUNDED;
 const NOTIFICATION_WIDTH: u16 = 40;
 const NOTIFICATION_HEIGHT: u16 = 3;
@@ -595,13 +597,30 @@ fn draw_playback_controls(f: &mut Frame, area: Rect, app: &App) {
         _ => ("", "Play"),
     };
 
+    let controls_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+        ])
+        .split(chunks[0]);
+
     let controls = Paragraph::new(format!(
         "󰒮 Prev   󰑟 -30s   {} {}   󰈑 +30s   󰒭 Next",
         play_icon, play_label
     ))
     .alignment(Alignment::Center)
     .style(theme.value_style());
-    f.render_widget(controls, chunks[0]);
+    f.render_widget(controls, controls_row[1]);
+
+    if app.is_downloading {
+        let loading_text = format!("{} Loading...", &app.loading_animation.current_frame());
+        let loading = Paragraph::new(loading_text)
+            .alignment(Alignment::Right)
+            .style(Style::new().fg(theme.accent).add_modifier(Modifier::BOLD));
+        f.render_widget(loading, controls_row[2]);
+    }
 
     let (chapter_start, chapter_duration) = match app.current_chapter.as_ref() {
         Some(ch) => (ch.start, ch.end - ch.start),

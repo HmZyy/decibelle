@@ -69,6 +69,7 @@ fn main() -> io::Result<()> {
             image_cache.clear();
         }
 
+        app.loading_animation.tick();
         terminal.draw(|f| ui::render::render(f, &mut app, &mut image_cache))?;
 
         match event_rx.recv_timeout(Duration::from_millis(50)) {
