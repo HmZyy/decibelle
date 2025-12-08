@@ -64,6 +64,7 @@ pub struct App {
     // Control
     pub should_quit: bool,
     pub auto_resume_pending: bool,
+    pub pending_resume_position: Option<f64>,
     pub error_message: Option<String>,
     pub layout_regions: LayoutRegions,
 }
@@ -114,6 +115,7 @@ impl App {
 
             should_quit: false,
             auto_resume_pending: true,
+            pending_resume_position: None,
             error_message: None,
             layout_regions: LayoutRegions::default(),
         }
@@ -188,6 +190,26 @@ impl App {
         self.loading_chapters = false;
         self.chapters = chapters;
         self.selected_chapter_index = 0;
+
+        self.update_current_chapter();
+
+        if let Some(position) = self.pending_resume_position.take() {
+            let chapter_start = self
+                .chapters
+                .iter()
+                .find(|ch| position >= ch.start && position < ch.end)
+                .map(|ch| ch.start)
+                .unwrap_or(0.0);
+
+            let resume_position = (position - 10.0).max(chapter_start);
+
+            if let Some(ref item) = self.current_library_item {
+                let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
+                    item.id.clone(),
+                    resume_position,
+                ));
+            }
+        }
     }
 
     pub fn on_download_finished(
@@ -213,21 +235,21 @@ impl App {
 
         self.current_library_item = Some(item.clone());
         self.current_item_id = Some(item.id.clone());
-
-        self.load_chapters(&item.id);
+        self.pending_resume_position = Some(position);
+        self.current_position = Duration::from_secs_f64(position);
 
         if let Some(ref media) = item.media {
+            if let Some(duration) = media.duration {
+                self.total_duration = Duration::from_secs_f64(duration);
+            }
             if let Some(ref tracks) = media.tracks {
                 self.current_tracks = tracks.clone();
             }
         }
 
+        self.load_chapters(&item.id);
+
         self.focus = Focus::Chapters;
-        let resume_position = (position - 10.0).max(0.0);
-        let _ = self.api_tx.send(ApiCommand::DownloadForPlayback(
-            item.id.clone(),
-            resume_position,
-        ));
     }
 
     pub fn on_api_error(&mut self, error: String) {
