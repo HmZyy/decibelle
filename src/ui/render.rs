@@ -21,8 +21,6 @@ use crate::{
     },
 };
 
-use crate::ui::loading::LoadingAnimation;
-
 const ROUNDED_BORDER: border::Set = border::ROUNDED;
 const NOTIFICATION_WIDTH: u16 = 40;
 const NOTIFICATION_HEIGHT: u16 = 3;
@@ -66,22 +64,32 @@ pub fn render(f: &mut Frame, app: &mut App, image_cache: &mut ImageCache) {
 fn draw_notifications(f: &mut Frame, area: Rect, notifications: &[Notification]) {
     let theme = get_theme();
 
-    for (i, notif) in notifications.iter().rev().take(5).enumerate() {
-        let y_offset = (i as u16) * (NOTIFICATION_HEIGHT + 1);
+    const MIN_WIDTH: u16 = 30;
+    const PADDING: usize = 5;
 
-        if y_offset + NOTIFICATION_HEIGHT > area.height {
+    for (i, notif) in notifications.iter().rev().take(5).enumerate() {
+        let prefix = notif.level.prefix();
+
+        let content_width = notif.text.len() + prefix.len() + PADDING;
+        let notif_width = (content_width as u16)
+            .max(MIN_WIDTH)
+            .min(area.width.saturating_sub(4));
+
+        let notif_height = 3;
+        let y_offset = (i as u16) * (notif_height + 1);
+
+        if y_offset + notif_height > area.height {
             break;
         }
 
         let notif_area = Rect {
-            x: area.width.saturating_sub(NOTIFICATION_WIDTH + 2),
+            x: area.width.saturating_sub(notif_width + 2),
             y: area.y + 1 + y_offset,
-            width: NOTIFICATION_WIDTH,
-            height: NOTIFICATION_HEIGHT,
+            width: notif_width,
+            height: notif_height,
         };
 
         let color = theme.notification_color(notif.level);
-        let prefix = notif.level.prefix();
 
         f.render_widget(Clear, notif_area);
 
@@ -685,7 +693,7 @@ fn draw_progress_bar(
             Constraint::Length(1),
             Constraint::Min(0),
             Constraint::Length(1),
-            Constraint::Length(8),
+            Constraint::Length(10),
         ])
         .split(area);
 
